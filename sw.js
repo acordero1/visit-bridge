@@ -1,6 +1,6 @@
-const CACHE_NAME = 'visit-bridge-shell-v3';
+const CACHE_NAME = 'visit-bridge-shell-v4';
 const ASSETS = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png',
-  '/src/styles.css', '/src/app.js', '/src/visit.js', '/src/cards.js', '/src/storage.js', '/src/offline.js'];
+  '/src/styles.css', '/src/app.js', '/src/visit.js', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' })))));

@@ -4,6 +4,7 @@ import { createVisit, editInstruction, instructionError, selectLanguage, confirm
 import { saveApprovedCard } from './cards.js';
 import { cardRepository } from './storage.js';
 import { initializeOffline } from './offline.js';
+import { createSpeechController } from './speech.js';
 
 const root = document.querySelector('#app');
 let visit = null;
@@ -22,6 +23,9 @@ let saveError = '';
 let savedRevision = null;
 let offline = { ready: false, unsupported: false, error: false, updateAvailable: false };
 let installPrompt = null;
+let captureMode = 'type';
+let speechState = { status: 'idle', message: 'Checking on-device English dictation…', interim: '', canDiscard: false };
+let previousSpeechStatus = 'idle';
 const dateLabel = value => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 const icons = {
   bridge: '<path d="M3 17v-5a9 9 0 0 1 18 0v5M3 14h18M8 14v7m8-7v7"/>',
@@ -58,12 +62,12 @@ function home() {
     <section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}<div id="install-control"></div></div></section>
     <div class="section-heading"><h2>A handoff in three simple steps</h2><span>Designed around the worker’s decision</span></div>
     <section class="how-grid">${[
-      ['01','note','Capture the next step','Write the instruction you have already chosen for your patient.'],
+      ['01','note','Capture the next step','Type or dictate the instruction you have already chosen for your patient.'],
       ['02','shield','Review with confidence','Check the wording and confirm it before preparing the handoff.'],
       ['03','card','Make it easy to remember','Open a simple, readable care card on the device you already use.'],
     ].map(([number, name, title, copy]) => `<article class="how-card"><div class="how-top"><span class="icon-tile">${icon(name)}</span><span class="step-number">${number}</span></div><h3>${title}</h3><p>${copy}</p></article>`).join('')}</section>
     <section class="scope-strip">${icon('shield')}<div><strong>Communication support, with the worker in control.</strong><p>Visit Bridge helps communicate a plan you have already decided. It does not diagnose, prescribe, or choose treatment.</p></div><span class="scope-tag">FOUNDATION DEMO</span></section>
-    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('mic')}Voice capture</span><span>${icon('globe')}Local language support</span><span>${icon('card')}Care-card export</span></div></section>`;
+    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('mic')}Spoken patient playback</span><span>${icon('globe')}Local language support</span><span>${icon('card')}Care-card export</span></div></section>`;
 }
 
 function progress(active) {
@@ -76,8 +80,8 @@ function formLayout(active, title, subtitle, content, aside) {
 
 function capture() {
   return formLayout(0, 'What is the next step?', 'Record the instruction you have already chosen for this patient.',
-    `<form id="capture-form"><label for="instruction">Your instruction <span>Required</span></label><p class="field-help" id="instruction-help">Use clear, specific wording. Leave out patient names and other identifying details.</p><textarea id="instruction" name="instruction" rows="7" maxlength="${MAX_INSTRUCTION_LENGTH}" aria-describedby="instruction-help character-count" placeholder="For example: Return to the clinic on Tuesday." required>${escape(visit.originalInstruction)}</textarea><div class="input-meta"><span>${icon('note')}Written by the health worker</span><span id="character-count">${visit.originalInstruction.length} / ${MAX_INSTRUCTION_LENGTH}</span></div><button type="button" class="sample-button" data-action="sample">Try a sample instruction</button><div class="form-actions"><button type="button" class="button secondary" data-action="home">Back to overview</button><button class="button primary" type="submit">Review instruction${icon('arrow')}</button></div></form>`,
-    `<span class="icon-tile">${icon('note')}</span><h2>Start with your decision.</h2><p>Capture the next step in your own words. You’ll review it before your patient sees it.</p><div class="helper-example"><span>EXAMPLE</span><p>“Return to the clinic on Tuesday.”</p></div><p class="future-note">Voice capture will be added in a later phase.</p>`);
+    `<form id="capture-form"><div id="voice-controls">${voiceControls()}</div><label for="instruction">Your instruction <span>Required</span></label><p class="field-help" id="instruction-help">Use clear, specific wording. Leave out patient names and other identifying details.</p><textarea id="instruction" name="instruction" rows="7" maxlength="${MAX_INSTRUCTION_LENGTH}" aria-describedby="instruction-help character-count" placeholder="For example: Return to the clinic on Tuesday." required>${escape(visit.originalInstruction)}</textarea><div class="input-meta"><span>${icon('note')}Written by the health worker</span><span id="character-count">${visit.originalInstruction.length} / ${MAX_INSTRUCTION_LENGTH}</span></div><button type="button" class="sample-button" data-action="sample">Try a sample instruction</button><div class="form-actions"><button type="button" class="button secondary" data-action="home">Back to overview</button><button class="button primary" type="submit">Review instruction${icon('arrow')}</button></div></form>`,
+    `<span class="icon-tile">${icon('note')}</span><h2>Start with your decision.</h2><p>Capture the next step in your own words. You’ll review it before your patient sees it.</p><div class="helper-example"><span>EXAMPLE</span><p>“Return to the clinic on Tuesday.”</p></div><p class="future-note">English dictation runs on-device where supported. You can always type instead.</p>`);
 }
 
 function review() {
@@ -100,18 +104,19 @@ function complete() {
 function render(focus = true) {
   root.innerHTML = `<div class="workspace" ${discardOpen || deleteId ? 'inert' : ''}>${sidebar()}<main class="main"><header class="topbar"><span>${['saved','savedCard'].includes(screen) ? 'Saved care cards' : screen === 'home' ? 'Overview' : 'Patient handoff'}</span><div class="topbar-status"><span class="prototype-badge">Prototype</span><span class="session-note" id="connection-status"></span></div></header><div class="page-content"><div id="offline-notice" class="offline-notice" role="status"></div>${({home, capture, review, handoff, complete, saved, savedCard})[screen]()}</div><footer class="main-footer"><span>Visit Bridge</span><span>World Bank · Small AI for development · Health</span></footer></main></div>${discardOpen ? `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="discard-heading"><h2 id="discard-heading">Discard this visit?</h2><p>Your current instruction will be removed from this session.</p><div class="form-actions">${button('Keep working','keep',true)}${button('Discard visit','discard')}</div></section></div>` : ''}${deleteId ? deleteDialog() : ''}`;
   updateStatus();
+  updateVoiceControls();
   if (deleteId) root.querySelector('[data-action="keep-card"]').focus();
   else if (discardOpen) root.querySelector('[data-action="keep"]').focus();
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
-function navigate(next) { screen = next; error = ''; discardOpen = false; render(); window.scrollTo(0, 0); }
-function start() { visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
+function navigate(next) { speech.cancel(); screen = next; error = ''; discardOpen = false; render(); window.scrollTo(0, 0); if (next === 'capture') speech.check(); }
+function start() { speech.cancel(); speech.textEdited(); captureMode = 'type'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
   if (event.target.id === 'instruction') {
-    visit = editInstruction(visit, event.target.value); confirmed = false;
-    document.querySelector('#character-count').textContent = `${event.target.value.length} / ${MAX_INSTRUCTION_LENGTH}`;
+    speech.textEdited();
+    setInstruction(event.target.value);
   }
   if (event.target.id === 'worker-confirm') confirmed = event.target.checked;
 });
@@ -125,6 +130,13 @@ root.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (!action) return;
   event.preventDefault();
+  if (action === 'type-mode') { speech.cancel(); captureMode = 'type'; updateVoiceControls(); root.querySelector('#instruction')?.focus(); }
+  if (action === 'dictate-mode') { captureMode = 'dictate'; updateVoiceControls(); speech.check(); }
+  if (action === 'dictate') speech.start(visit.originalInstruction);
+  if (action === 'stop-dictation') speech.stop();
+  if (action === 'discard-dictation') speech.discard();
+  if (action === 'check-speech') speech.check();
+  if (action === 'download-speech') speech.install();
   if (action === 'saved') { navigate('saved'); refreshCards(); }
   if (action === 'open-card') {
     selectedCard = cards.find(card => card.id === event.target.closest('[data-card-id]').dataset.cardId);
@@ -138,11 +150,11 @@ root.addEventListener('click', event => {
   if (action === 'home') navigate('home');
   if (action === 'start') start();
   if (action === 'resume') visit ? navigate(visit.status === 'confirmed' ? 'handoff' : 'capture') : start();
-  if (action === 'sample') { visit = editInstruction(visit, 'Return to the clinic on Tuesday.'); confirmed = false; render(false); document.querySelector('#instruction').focus(); }
+  if (action === 'sample') { speech.cancel(); speech.textEdited(); visit = editInstruction(visit, 'Return to the clinic on Tuesday.'); confirmed = false; render(false); document.querySelector('#instruction').focus(); }
   if (action === 'edit') navigate('capture');
   if (action === 'review') { confirmed = visit.status === 'confirmed'; navigate('review'); }
   if (action === 'handoff') navigate('handoff');
-  if (action === 'cancel') { discardOpen = true; render(false); }
+  if (action === 'cancel') { speech.cancel(); discardOpen = true; render(false); }
   if (action === 'keep') { discardOpen = false; render(false); root.querySelector('[data-action="cancel"]').focus(); }
   if (action === 'discard' || action === 'finish') { visit = null; confirmed = false; navigate('home'); }
 });
@@ -150,6 +162,7 @@ root.addEventListener('submit', event => {
   event.preventDefault();
   try {
     if (event.target.id === 'capture-form') {
+      if (speech.isBusy()) { error = 'Stop dictation and check the captured words before reviewing.'; return; }
       const problem = instructionError(visit.originalInstruction); if (problem) throw new Error(problem);
       confirmed = visit.status === 'confirmed'; navigate('review');
     } else if (event.target.id === 'review-form') { visit = confirmVisit(visit, confirmed); navigate('handoff'); }
@@ -160,6 +173,7 @@ root.addEventListener('submit', event => {
   } catch (problem) { error = problem.message; render(false); root.querySelector('.error')?.scrollIntoView({ block: 'center' }); }
 });
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && speech.isBusy()) { speech.cancel(); root.querySelector('#instruction')?.focus(); return; }
   if (!discardOpen && !deleteId) return;
   if (event.key === 'Escape' && deleteId && !deleting) { deleteId = null; render(); return; }
   if (event.key === 'Escape' && discardOpen) { discardOpen = false; render(false); root.querySelector('[data-action="cancel"]').focus(); }
@@ -243,6 +257,46 @@ async function promptInstall() {
   try { await prompt.prompt(); await prompt.userChoice; } catch { /* Browser keeps control of install eligibility. */ }
   updateStatus();
 }
+function setInstruction(text) {
+  if (!visit || screen !== 'capture') return;
+  visit = editInstruction(visit, text); confirmed = false;
+  const field = root.querySelector('#instruction');
+  if (field && field.value !== text) field.value = text;
+  const count = root.querySelector('#character-count');
+  if (count) count.textContent = `${text.length} / ${MAX_INSTRUCTION_LENGTH}`;
+}
+
+function voiceControls() {
+  const busy = ['starting', 'listening', 'stopping'].includes(speechState.status);
+  const ready = ['ready', 'review'].includes(speechState.status);
+  return `<div class="capture-modes" role="group" aria-label="Instruction input method"><button type="button" class="mode-button ${captureMode === 'type' ? 'selected' : ''}" data-action="type-mode" aria-pressed="${captureMode === 'type'}">${icon('note')}Type instruction</button><button type="button" class="mode-button ${captureMode === 'dictate' ? 'selected' : ''}" data-action="dictate-mode" aria-pressed="${captureMode === 'dictate'}" ${busy ? 'disabled' : ''}>${icon('mic')}Dictate instruction</button></div>${captureMode === 'dictate' ? `<section class="voice-panel ${busy ? 'recording' : ''}" aria-label="On-device English dictation"><div class="voice-heading">${icon('mic')}<strong>${speechState.status === 'listening' ? 'Microphone active' : speechState.status === 'starting' ? 'Waiting for microphone access' : speechState.status === 'stopping' ? 'Stopping microphone' : 'On-device English dictation'}</strong><span class="voice-badge">Local only</span></div><p id="speech-status" role="status">${escape(speechState.message)}</p>${speechState.interim ? `<div class="interim-preview"><span>HEARD SO FAR · NOT YET ACCEPTED</span><p>${escape(speechState.interim)}</p></div>` : ''}<div class="voice-actions">${busy ? `<button type="button" class="button primary" data-action="stop-dictation" ${speechState.status === 'stopping' ? 'disabled' : ''}>${speechState.status === 'starting' ? 'Cancel microphone request' : 'Stop recording'}</button>` : `<button type="button" class="button secondary" data-action="dictate" ${ready ? '' : 'disabled'}>${icon('mic')}${speechState.status === 'review' ? 'Dictate more' : 'Start dictation'}</button>`}${speechState.status === 'downloadable' ? '<button type="button" class="text-button" data-action="download-speech">Download English speech pack</button>' : ['error','blocked','unsupported','waiting','idle'].includes(speechState.status) ? '<button type="button" class="text-button" data-action="check-speech">Check again</button>' : ''}${speechState.canDiscard ? '<button type="button" class="text-button" data-action="discard-dictation">Discard dictated words</button>' : ''}</div><small>Speak only the next step you chose. Use fictional demo information and omit identifying details. Stop recording to edit the accepted words below. No raw audio is saved by Visit Bridge.</small></section>` : ''}`;
+}
+
+function updateVoiceControls() {
+  const controls = root.querySelector('#voice-controls');
+  if (!controls) return;
+  const focusedAction = controls.contains(document.activeElement) ? document.activeElement.dataset.action : null;
+  controls.innerHTML = voiceControls();
+  const busy = ['starting', 'listening', 'stopping'].includes(speechState.status);
+  const field = root.querySelector('#instruction');
+  field.readOnly = busy;
+  root.querySelector('#capture-form button[type="submit"]').disabled = busy;
+  root.querySelector('[data-action="sample"]').disabled = busy;
+  if (focusedAction) {
+    const replacement = controls.querySelector(`[data-action="${focusedAction}"]:not(:disabled)`)
+      || controls.querySelector('[data-action="stop-dictation"]:not(:disabled)');
+    replacement?.focus();
+  }
+  if (['starting','listening','stopping'].includes(previousSpeechStatus) && !busy) field.focus();
+  previousSpeechStatus = speechState.status;
+}
+
+const speech = createSpeechController({
+  onState: state => { speechState = state; updateVoiceControls(); },
+  onText: text => setInstruction(text),
+});
+window.addEventListener('pagehide', () => speech.cancel());
+document.addEventListener('visibilitychange', () => { if (document.hidden) speech.cancel(); });
 window.addEventListener('online', updateStatus);
 window.addEventListener('offline', updateStatus);
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; updateStatus(); });

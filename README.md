@@ -33,7 +33,7 @@ This is communication support. It does not diagnose, prescribe, triage, recommen
 
 Use synthetic information only. A visit contains a random temporary ID, original instruction, selected language, revision, review status, and timestamps. It does not collect patient identity or clinical records. Unsaved drafts stay in browser memory and clear on reload or close. Only choosing **Save on this device** writes a confirmed card to IndexedDB in this browser. Saved cards contain the exact approved text, language, revision, and timestamps; they survive finishing a visit and reload. They are not encrypted and anyone using this browser can read them. Delete them from Saved cards when finished. Browser storage can be evicted or cleared and has no cloud backup. No content is sent to a backend, analytics, or a model; there is no sensitive content logging. The local static server has no request logging and serves only public application assets.
 
-Voice, translated explanations, local AI, card export/printing, and AR are not implemented. The UI labels future capabilities as future work. Finishing without saving clears the draft. Saving keeps a copy on this device; it does not print or send it. Local language selection and language-pack validation remain future decisions.
+Translated explanations, local AI structuring, patient audio playback, card export/printing, and AR are not implemented. Worker dictation is supported only when a browser confirms on-device English recognition; unsupported devices keep typing available. The UI labels future capabilities as future work. Finishing without saving clears the draft. Saving keeps a copy on this device; it does not print or send it. Local language selection and language-pack validation remain future decisions.
 
 ## Structure
 
@@ -41,12 +41,13 @@ Voice, translated explanations, local AI, card export/printing, and AR are not i
 - `src/app.js`: interface, navigation, input handling, and session state.
 - `src/cards.js`: validates approved card snapshots before storing or displaying.
 - `src/storage.js`: IndexedDB access; save and delete succeed only after transaction commit.
+- `src/speech.js`: local-only English dictation, capability and pack checks, permission/error handling, and microphone lifecycle.
 - `src/offline.js`: service-worker setup and installation/offline readiness indicators.
 - `sw.js`: versions and caches public app assets; never caches care-card content.
 - `manifest.webmanifest` and `icons/`: PWA metadata and install icons.
 - `src/styles.css`: responsive visual system and accessibility states.
 - `scripts/serve.mjs`: dependency-free local static server.
-- `tests/visit.test.mjs` and `tests/cards.test.mjs`: approval, revision, exact text, storage-failure propagation, and stored-card validity tests.
+- `tests/visit.test.mjs`, `tests/cards.test.mjs`, and `tests/speech.test.mjs`: approval, revision, storage failure, local-only speech admission, transcript handling, cancellation, and error tests. Speech tests use a fake browser recognition engine; they do not record a real microphone.
 
 The same static files can later be deployed to a public static host for the submission URL. This checkpoint is local only. Future transformation output should be stored separately from the original instruction with its own review state. Future voice and language-pack adapters should connect to the domain layer rather than bypassing approval checks.
 
@@ -75,3 +76,19 @@ A device being reported online is only a browser connection hint, not proof of i
 App assets use a versioned cache. For each release that changes cached assets, bump the cache name in `sw.js`. New workers wait until existing Visit Bridge tabs close, preserving a running visit. The UI indicates waiting updates; close all app tabs and reopen to apply them. Saved cards remain in IndexedDB when app caches are replaced.
 
 Second checkpoint: `Offline app shell and saved care cards`.
+
+## Third checkpoint: on-device worker dictation
+
+Capture now offers **Type instruction** and **Dictate instruction**. Dictation is English (`en-US`), while patient card language remains the separately selected English demo language. The browser must expose `SpeechRecognition.processLocally` and `SpeechRecognition.available`, and confirm availability for local dictation. Recognition is set to `processLocally = true` before every start. No prefixed, remote, or server recognition fallback is used. A downloadable language pack is installed only after the worker chooses its download action; it is managed by the browser, separately from the app-shell cache.
+
+Live microphone access starts only after **Start dictation**. A single dictation session lasts at most 60 seconds. Interim words appear in a clearly labeled preview. Final recognized words append to existing text without duplicating repeated result events. The instruction is read-only while recording; stop to correct it. **Discard dictated words** restores the pre-dictation text until manual editing occurs. Recognition errors preserve the last accepted text, and oversized results are rejected without silently cutting instructions short. No raw audio is saved by Visit Bridge.
+
+Stop, Escape, switching to typing, leaving capture, opening the cancel dialog, hiding the page, and page exit end or abort microphone use. Cancelled sessions ignore late results. Dictated edits use the same revision and worker approval rules as typed edits; they never auto-advance or auto-save. Permission denials are not automatically retried.
+
+On-device speech APIs remain experimental and availability varies by browser, operating system, hardware, and language pack. Use a browser that exposes the local APIs on HTTPS or localhost. If local English dictation is unavailable, the app explains this and disables microphone start. Offline app readiness does not mean a local speech pack is installed.
+
+Verification: 16 domain/controller tests and syntax checks pass; Codex browser walkthrough confirms unavailable-local-speech fallback, editable typing, required worker confirmation, and care-card preparation. Live audio recognition and actual language-pack download were not verified on this machine, because Codex's browser reports local English dictation unavailable. A real supported-browser microphone test remains necessary before presenting live dictation to judges.
+
+Third checkpoint: `On-device voice capture for worker instructions`.
+
+Browser API references: https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/processLocally and https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/available_static
