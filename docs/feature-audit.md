@@ -1,17 +1,17 @@
 # Visit Bridge feature audit
 
-Assessment baseline: Git commit `dd3a92e`, 2026-10-04.
+Assessment baseline: Git commit `9fa3cf0`, 2026-10-04.
 
 The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.
 
-Baseline dd3a92e plus device-vault checkpoint source inspection, 67 automated tests and native IndexedDB/UI/server-outage checks; see docs/device-vault.md. This is not qualified security, clinical, context-consent or physical-device validation.
+Baseline 9fa3cf0 plus portable card/model pack checkpoint source inspection, 76 automated tests, real 207 MB export/import and imported-model inference with the receiving app server stopped; see docs/portable-cards-and-packs.md and docs/device-vault.md. This is not full network-disconnection, target-phone, printer/PDF, qualified language, security or clinical validation.
 
 ## Coverage summary
 
 - **partial:** 8
-- **implemented:** 18
+- **implemented:** 20
 - **needs-validation:** 6
-- **missing:** 12
+- **missing:** 10
 - **future:** 1
 
 These are requirement counts with unequal scope, not a completion percentage. A source-section mapping is traceability, not proof of perfect semantic completeness.
@@ -26,8 +26,8 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 2. **Structured administrative handoff and explicit uncertainty — implementation checkpoint completed; field-model/device validation tracked separately.** Add action/date/time/place/item/task and optional separately labeled patient-reported information. Preserve the source and span provenance. Use unknown/ambiguous states; never infer a date or referral decision. Add constrained local-model extraction and validated output schemas, with a complete typed baseline. Put source, fields and model draft side by side. Keep clinical content outside supported model transformation. Changes revoke approval and future understanding results. Validate no new facts, uncertain date, missing required fields, optional blanks and rejected output. Do not collect patient concerns merely because a field exists.
 3. **Patient understanding — implementation completed; human/device validation pending.** Add one approved action per line, simple action-specific symbols and a worker-facing teach-back prompt. Record understood, clarified or needs-follow-up against the exact approved revision. Let the worker replay/clarify without automatic patient scoring. Add Home pack readiness and explicit input language. Save/reopen understanding status with the card. Do not equate marking understood with proven medical comprehension.
 4. **Encrypted vault and privacy — implementation checkpoint completed; security/context/device validation remains pending.** Authenticated full-payload encryption, passphrase-protected keys, explicit lock/unlock, inactivity/background/page lifecycle locking, media cancellation, independent fictional dictation/save permission, verified atomic legacy migration, passphrase change, deliberate erase and cross-tab write fencing are implemented. Legacy records remain plaintext until the user completes setup. See docs/device-vault.md for tested behavior and recovery/device-loss limits; no production-health-data safety claim.
-5. **Next coding checkpoint: portable patient card and installation.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. Add a local verified model-pack import/export path and explicit weak-connection/side-loading instructions. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
-6. **Original marker-scan AR replay checkpoint.** Add the original printed/on-screen visual marker and offline lookup of the correct approved card. Unknown or stale markers must not select a different card. Show the approved action sequence and explicit local-language audio replay inside AR. Keep existing surface-placement AR as an additional mode. Validate on the actual phone; unsupported capabilities retain plain text/audio. Test scanning/replay offline and compare with the plain-card experience before claiming benefit.
+5. **Portable patient card and installation — software checkpoint completed; physical device/transfer/print validation pending.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. A pinned, integrity-checked import/export and connected-install path with local transfer instructions is implemented. See docs/portable-cards-and-packs.md for actual browser verification and limits. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
+6. **Next coding checkpoint: original marker-scan AR replay.** Add the original printed/on-screen visual marker and offline lookup of the correct approved card. Unknown or stale markers must not select a different card. Show the approved action sequence and explicit local-language audio replay inside AR. Keep existing surface-placement AR as an additional mode. Validate on the actual phone; unsupported capabilities retain plain text/audio. Test scanning/replay offline and compare with the plain-card experience before claiming benefit.
 7. **Full offline/device and localization verification checkpoint.** Once the above flows exist, run the complete create/organize/review/explain/understanding/encrypted-save/reopen/delete journey in actual airplane mode. Measure cold/warm model latency, device memory method, pack transfer size, speech behavior, pronunciation and AR tracking. Inspect network behavior. Obtain and record genuine qualified/fluent/community review; do not remove the Spanish demonstration notice without evidence. If a participant/device cannot be obtained, the requirement remains pending.
 8. **Evidence and baseline checkpoint.** Run 10–20 synthetic common/uncertain scenarios; record fidelity, introduced facts, corrections/rejections, completion and time. Compare the same tasks with the plain form/paper baseline. Obtain consented comprehension/local-worker feedback where possible. Keep scripted results separate from human results; report device, language, sample, method and limits. Use no invented adherence, diagnosis, clinical-safety or health-outcome claims. Record country/year/source for problem evidence separately from model/evaluation inputs.
 9. **Hosting and documentation checkpoint.** Prepare a public HTTPS origin, correct static paths/headers/MIME, pack installation and offline instructions, judge-facing scope, GitHub link and limitations. Consolidate charter/privacy/feasibility/model/license/evaluation/replication documents. A new origin needs its own installation/cache. Confirm the public site, not only localhost. Deployment and external submission occur only within the user's authorized workflow.
@@ -368,11 +368,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Portable model installation over constrained connections (sideload)
 
-**Status:** missing · **Phase:** portable · **Original schematic:** 2, 11, 17 · **Original timeline:** 1, 6
+**Status:** implemented · **Phase:** portable · **Original schematic:** 2, 11, 17 · **Original timeline:** 1, 6
 
-**Evidence:** No implementation evidence recorded.
+**Evidence:** `src/model-pack.js` — `importPack`; `src/model-pack-manifest.js` — `PACK_MANIFEST`; `docs/portable-cards-and-packs.md` — `Verification`
 
-**Remaining:** Network installer exists; no import/export of a verified portable model pack or weak-connection/side-loading evidence. Add a local verified pack transfer route and report real sizes.
+**Remaining:** Pinned public pack transfer, staged verification and local import/export implemented. Real 206,665,468-byte archive imported and ran with receiving app server stopped. Physical transfer, full disconnection, quota/low-end performance remain unverified; pack does not install shell, language content or OS voices.
 
 **Accept when:** Previously downloaded pack can be installed on a supported device without re-fetching all assets; invalid/incomplete files are refused; no smaller-device feasibility claim without measurement.
 
@@ -392,11 +392,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Printable/offline portable patient summary (paper)
 
-**Status:** missing · **Phase:** portable · **Original schematic:** 1, 4, 7, 14, 16, 20 · **Original timeline:** 4, 10, 11
+**Status:** implemented · **Phase:** portable · **Original schematic:** 1, 4, 7, 14, 16, 20 · **Original timeline:** 4, 10, 11
 
-**Evidence:** No implementation evidence recorded.
+**Evidence:** `src/portable-card.js` — `patientCopyHTML`; `src/app.js` — `function openPortable`; `docs/portable-cards-and-packs.md` — `Verification`
 
-**Remaining:** Add approved-only print/download output usable without the patient owning a phone, with date/place, language and review notice retained.
+**Remaining:** Approved-only print/download software implemented and Spanish HTML verified during server outage. Actual paper/PDF output, target-device readability and local workflow validation remain pending. Exported copies cannot be recalled.
 
 **Accept when:** Paper/portable output is readable, matches approved text, preserves Spanish status and works without AR or network; printing hardware availability is stated.
 

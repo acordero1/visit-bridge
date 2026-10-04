@@ -1,3 +1,6 @@
+import { createPackController } from './pack-controller.js';
+import { PACK_BYTES, PACK_MANIFEST } from './model-pack-manifest.js';
+import { patientCopy, patientCopyMarkup, patientCopyHTML, portableStamp, downloadBlob } from './portable-card.js';
 import { createSessionController } from './session.js';
 import { permitted, setPermission } from './consent.js';
 import { currentUnderstanding, saveStamp, patientLines } from './understanding.js';
@@ -15,6 +18,9 @@ import { loadLanguagePack, installLanguagePack } from './language-packs.js';
 import { createARController } from './ar.js';
 import { createPlaybackController } from './playback.js';
 let vaultUnlocked = false, vaultReady = false, vaultConfigured = false, legacyPresent = false, vaultBusy = false, vaultError = '', vaultMessage = '', eraseOpen = false, sessionGeneration = 0;
+let transferState={status:'idle',message:'Import a compatible pack to install local AI without downloading it on this device.',busy:false};
+let portableOverlay=null,portableSnapshot=null,portableExpected=null,portableConfirmed=false,printStage=null;
+let exportedURLs=new Set();
 let playbackState = { status: 'checking', message: 'Checking for a local English voice…', available: false, voiceName: '' };
 let modelState = { status: 'checking', message: 'Checking local AI availability…', installed: false };
 let patientConfirmed = false;
@@ -121,12 +127,17 @@ function readinessPanel() {
     ['Offline app', offline.ready ? 'Cached and ready on this origin' : offline.error || offline.unsupported ? 'Offline loading unavailable' : 'Checking app cache'],
     ['English typed input', 'Available · no optional pack needed'],
     ['English dictation', ['ready','review'].includes(speechState.status) ? 'Local pack available · microphone starts only when requested' : speechState.message],
-    ['Local AI', modelState.status === 'unsupported' || modelState.status === 'error' ? modelState.message : modelState.installed ? 'Pack installed · device performance still needs validation' : modelState.status === 'checking' ? 'Checking local files' : 'Not installed · optional download about 207 MB'],
+    ['Local AI', transferState.busy ? transferState.message : modelState.status === 'unsupported' || modelState.status === 'error' ? modelState.message : modelState.installed ? 'Pack installed · device performance still needs validation' : modelState.status === 'checking' ? 'Checking local files' : 'Not installed · optional download about 207 MB'],
     ['Spanish patient text', spanishPack ? `Installed ${spanishPack.version} · return-date-and-clinic template only · unvalidated` : packError || (packStatus === 'checking' ? 'Checking local pack' : 'Not installed · English remains available')],
     ['Local read-aloud', `English: ${localVoice('en') ? 'voice reported by browser' : 'no matching local voice reported'}; Spanish: ${localVoice('es') ? 'voice reported by browser' : 'no matching local voice reported'}. Speaker output and offline behavior require device testing.`]
   ];
   return `<h2>Ready on this device?</h2><p>App, AI, speech and patient-language availability are checked separately. No packs download automatically.</p><dl class="readiness-list">${entries.map(([name,value])=>`<div><dt>${escape(name)}</dt><dd>${escape(value)}</dd></div>`).join('')}</dl><button type="button" class="button secondary" data-action="check-readiness">Check availability again</button>`;
 }
+function transferPanel() {
+  const disabled=transferState.busy || ['loading','generating'].includes(modelState.status);
+  return `<section class="transfer-panel" aria-labelledby="transfer-heading"><h2 id="transfer-heading">Carry local AI between devices</h2><p>Import or export this release’s public model and runtime files. No visit, saved card, passphrase or vault key is included.</p><p>Pack: ${(PACK_BYTES/1e6).toFixed(2)} MB plus a small header · SmolLM2-135M q4. No automatic downloads. The receiving device needs Visit Bridge installed/cached before going offline.</p><p id="transfer-status" role="status" aria-live="polite">${escape(transferState.message)}</p><div class="transfer-actions"><button type="button" class="button secondary" data-action="install-model" ${disabled?'disabled':''}>Install while connected</button><button type="button" class="button secondary" data-action="choose-model-pack" ${disabled?'disabled':''}>Import offline model pack</button><button type="button" class="button secondary" data-action="export-model-pack" ${disabled||!modelState.installed?'disabled':''}>Export installed model pack</button>${transferState.busy?'<button type="button" class="button secondary" data-action="cancel-transfer">Cancel transfer</button>':''}</div><input id="model-pack-file" type="file" accept=".vbmodel" hidden><details><summary>Transfer and storage instructions</summary><ol><li>On a connected device, explicitly install and export the verified pack.</li><li>Move the .vbmodel file by USB or another local file-transfer method. This app does not send it to another device.</li><li>On the receiving device, select Import offline model pack. Every file is checked before installation.</li><li>Check device readiness and run a local draft. Performance depends on the device; pack presence does not prove speed.</li></ol><p>Installing a replacement may need another roughly 207 MB of storage. A matching verified installation is reused. Previous working packs are retained so running tabs can still use them. Downloads and browser Blob storage may also need additional disk or memory.</p><p>A transfer installs AI assets only. Browser dictation and read-aloud voices are separate OS/browser resources and are not transferred. The Spanish text pack is installed separately.</p><small>Supported model revision: ${escape(PACK_MANIFEST.revision)}. License and provenance files travel with the pack.</small></details></section>`;
+}
+function updateTransferPanel() { const panel=root.querySelector('#model-transfer');if(panel)panel.innerHTML=transferPanel(); }
 function updateReadiness() { const panel = root.querySelector('#home-readiness'); if (panel) panel.innerHTML = readinessPanel(); }
 
 function home() {
@@ -134,7 +145,7 @@ function home() {
     <h1 tabindex="-1">A clear next step.<br>For every patient.</h1><p>Turn the next step you’ve chosen into a simple handoff your patient can take with them.</p>
     ${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}<div class="hero-footnote">${icon('shield')}Your decision. Your review. Their next step.</div></div>
     <div class="hero-art" aria-hidden="true"><div class="art-orbit"></div><div class="art-badge">${icon('check')}Worker confirmed</div><div class="example-card"><div class="card-logo">${icon('bridge')}VISIT BRIDGE</div><span class="card-eyebrow">EXAMPLE HANDOFF</span><h2>Your next step</h2><p>Return to the clinic<br>on Tuesday.</p><div class="card-rule"></div><div class="example-meta">A reminder from your health worker<span>English · Read</span></div></div><div class="art-caption">Small instructions.<br>Meaningful connections.</div></div></section>
-    ${privacyPanel()}<section id="home-readiness" class="readiness-panel" aria-label="Device readiness">${readinessPanel()}</section><section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}<div id="install-control"></div></div></section>
+    ${privacyPanel()}<div id="model-transfer">${transferPanel()}</div><section id="home-readiness" class="readiness-panel" aria-label="Device readiness">${readinessPanel()}</section><section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}<div id="install-control"></div></div></section>
     <div class="section-heading"><h2>A handoff in three simple steps</h2><span>Designed around the worker’s decision</span></div>
     <section class="how-grid">${[
       ['01','note','Capture the next step','Type or dictate the instruction you have already chosen for your patient.'],
@@ -142,7 +153,7 @@ function home() {
       ['03','card','Make it easy to remember','Open a simple, readable care card on the device you already use.'],
     ].map(([number, name, title, copy]) => `<article class="how-card"><div class="how-top"><span class="icon-tile">${icon(name)}</span><span class="step-number">${number}</span></div><h3>${title}</h3><p>${copy}</p></article>`).join('')}</section>
     <section class="scope-strip">${icon('shield')}<div><strong>Communication support, with the worker in control.</strong><p>Visit Bridge helps communicate a plan you have already decided. It does not diagnose, prescribe, or choose treatment.</p></div><span class="scope-tag">FOUNDATION DEMO</span></section>
-    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('globe')}Validated patient translations</span><span>${icon('globe')}Additional language packs</span><span>${icon('card')}Care-card export</span></div></section>`;
+    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('globe')}Validated patient translations</span><span>${icon('globe')}Additional language packs</span><span>${icon('card')}Marker-scan AR replay</span></div></section>`;
 }
 
 function progress(active) {
@@ -166,9 +177,9 @@ function sourceEvidence() {
   return evidence ? `${escape(source.slice(0, evidence.start))}<mark>${escape(source.slice(evidence.start, evidence.end))}</mark>${escape(source.slice(evidence.end))}` : escape(source);
 }
 function extractionControls() {
-  const busy = ['installing','loading','generating'].includes(modelState.status);
+  const busy = transferState.busy || ['installing','loading','generating'].includes(modelState.status);
   const scope = extractionScopeIssue(visit.originalInstruction);
-  return `<strong>Organize my note · on-device AI</strong><p role="status">${escape(modelState.message)}</p>${scope ? `<p>${escape(scope)}</p>` : ''}<div class="voice-actions">${busy ? '<button type="button" class="button secondary" data-action="cancel-model">Cancel</button>' : modelState.installed ? `<button type="button" class="button secondary" data-action="extract-note" ${scope ? 'disabled' : ''}>Organize my note</button>` : `<button type="button" class="button secondary" data-action="install-model" ${['checking','unsupported'].includes(modelState.status) ? 'disabled' : ''}>Install local AI · about 207 MB</button>`}</div><small>English input. Exact source quotes only; every value still needs worker review. The form below works without AI. Schema checks cannot prove meaning.</small>`;
+  return `<strong>Organize my note · on-device AI</strong><p role="status">${escape(transferState.busy?transferState.message:modelState.message)}</p>${scope ? `<p>${escape(scope)}</p>` : ''}<div class="voice-actions">${busy ? '<button type="button" class="button secondary" data-action="cancel-model">Cancel</button>' : modelState.installed ? `<button type="button" class="button secondary" data-action="extract-note" ${scope ? 'disabled' : ''}>Organize my note</button>` : `<button type="button" class="button secondary" data-action="install-model" ${['checking','unsupported'].includes(modelState.status) ? 'disabled' : ''}>Install local AI · about 207 MB</button>`}</div><small>English input. Exact source quotes only; every value still needs worker review. The form below works without AI. Schema checks cannot prove meaning.</small>`;
 }
 function fieldEvidence(key) {
   const field = visit.handoff.fields[key];
@@ -208,8 +219,8 @@ function structuredRecord(h) {
 }
 
 function aiControls() {
-  const busy = ['installing','loading','generating'].includes(modelState.status);
-  return `<div class="voice-heading">${icon('shield')}<strong>Optional on-device AI draft</strong><span class="voice-badge">English · local</span></div><p role="status">${escape(modelState.message)}</p><div class="voice-actions">${busy ? '<button type="button" class="button secondary" data-action="cancel-model">Cancel</button>' : modelState.installed ? `<button type="button" class="button secondary" data-action="generate-model" ${visit.language !== 'en' ? 'disabled' : ''}>Draft simpler wording</button>` : `<button type="button" class="button secondary" data-action="install-model" ${['unsupported','checking'].includes(modelState.status) ? 'disabled' : ''}>Install local AI · about 207 MB</button>`}</div><small>SmolLM2-135M runs in this browser. Installation needs internet; drafting uses cached files. A small model can lose or change meaning. Check every word before approving. Performance depends on device memory and speed.</small>`;
+  const busy = transferState.busy || ['installing','loading','generating'].includes(modelState.status);
+  return `<div class="voice-heading">${icon('shield')}<strong>Optional on-device AI draft</strong><span class="voice-badge">English · local</span></div><p role="status">${escape(transferState.busy?transferState.message:modelState.message)}</p><div class="voice-actions">${busy ? '<button type="button" class="button secondary" data-action="cancel-model">Cancel</button>' : modelState.installed ? `<button type="button" class="button secondary" data-action="generate-model" ${visit.language !== 'en' ? 'disabled' : ''}>Draft simpler wording</button>` : `<button type="button" class="button secondary" data-action="install-model" ${['unsupported','checking'].includes(modelState.status) ? 'disabled' : ''}>Install local AI · about 207 MB</button>`}</div><small>SmolLM2-135M runs in this browser. Install while connected or import a verified pack; drafting uses cached files. A small model can lose or change meaning. Check every word before approving. Performance depends on device memory and speed.</small>`;
 }
 function updateAI() {
   const panel = root.querySelector('#ai-controls'); if (panel) panel.innerHTML = aiControls();
@@ -259,7 +270,7 @@ function updatePlaybackControls() {
 
 function complete() {
   const text = patientInstruction(visit);
-  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p>${patientCard(text)}${understandingPanel(visit, true)}${permissionControl("storage", "Permission to save this card on this device")}<div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === saveStamp(visit) ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || !permitted(visit,'storage') || savedRevision === saveStamp(visit) ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === saveStamp(visit) ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved contents are encrypted in this device vault. Lock after use. There is no cloud backup. Permission to save is separate from permission to dictate. Delete cards when finished.</small></div><p class="completion-note">${savedRevision === saveStamp(visit) ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
+  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p>${patientCard(text)}${understandingPanel(visit, true)}${portableControls()}${permissionControl("storage", "Permission to save this card on this device")}<div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === saveStamp(visit) ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || !permitted(visit,'storage') || savedRevision === saveStamp(visit) ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === saveStamp(visit) ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved contents are encrypted in this device vault. Lock after use. There is no cloud backup. Permission to save is separate from permission to dictate. Delete cards when finished.</small></div><p class="completion-note">${savedRevision === saveStamp(visit) ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} Printed and downloaded copies remain outside this vault.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
 }
 
 function render(focus = true) {
@@ -273,7 +284,7 @@ function render(focus = true) {
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
-function navigate(next) { if(next==='review' && reviewMode==='structured' && !visit.handoff) visit=setStructuredHandoff(visit,initialHandoff()); closeAR(); playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; extractionProposal=null; extractionError=''; evidenceKey=null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'review' || (next === 'handoff' && visit.language !== 'es')) model.check(); if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
+function navigate(next) { closePortable();packManager.cancel(); if(next==='review' && reviewMode==='structured' && !visit.handoff) visit=setStructuredHandoff(visit,initialHandoff()); closeAR(); playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; extractionProposal=null; extractionError=''; evidenceKey=null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'review' || (next === 'handoff' && visit.language !== 'es')) model.check(); if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
 function start() { structuredBackup=null; reviewMode='structured'; extractionProposal=null; speech.cancel(); speech.textEdited(); captureMode = 'type'; templateMode = false; templateDate = ''; templateLocation = 'clinic'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
@@ -290,6 +301,7 @@ root.addEventListener('input', event => {
 });
 root.addEventListener('change', event => {
   if (!vaultUnlocked) return;
+  if(event.target.id==='model-pack-file') { const file=event.target.files?.[0]; event.target.value=''; if(file){model.cancel(); packManager.import(file);} return; }
   if(event.target.dataset.permission) { visit = setPermission(visit,event.target.dataset.permission,event.target.value); if(event.target.dataset.permission==='dictation' && !permitted(visit,'dictation')) speech.clear(); const id=event.target.id; render(false); root.querySelector(`#${id}`)?.focus(); return; }
   if(event.target.id==='workflow' || event.target.dataset.state || event.target.dataset.required) {
     model.cancel();
@@ -310,6 +322,10 @@ root.addEventListener('click', event => {
   if(action==='vault-erase-open') { eraseOpen=true; render(false); root.querySelector('#erase-confirm')?.focus(); return; }
   if(action==='vault-erase-cancel') { eraseOpen=false; render(false); return; }
   if (!vaultUnlocked || vaultBusy) return;
+  if(action==='portable-card')openPortable();
+  if(action==='choose-model-pack'){root.querySelector('#model-pack-file')?.click();return;}
+  if(action==='export-model-pack'){model.cancel();packManager.export();return;}
+  if(action==='cancel-transfer'){packManager.cancel();model.check();return;}
   if((action==='structured-mode' && reviewMode!=='structured') || (action==='source-mode' && reviewMode!=='source')) { model.cancel(); if(visit.handoff) structuredBackup=structuredClone(visit.handoff); reviewMode=action==='structured-mode'?'structured':'source'; visit=setStructuredHandoff(visit,reviewMode==='structured' ? (structuredBackup?.sourceRevision===visit.revision ? structuredBackup : initialHandoff()) : null); confirmed=false; extractionProposal=null; extractionError=''; render(false); }
   if(action==='inspect-evidence') { evidenceKey=event.target.closest('[data-field]').dataset.field; root.querySelector('#review-source').innerHTML=sourceEvidence(); root.querySelector('#review-source').scrollIntoView({block:'center',behavior:'smooth'}); }
   if(action==='extract-note') { extractionProposal=null; extractionError=''; rejectedExtractionText=''; render(false); model.extract(visit); }
@@ -335,8 +351,8 @@ root.addEventListener('click', event => {
   if (action === 'install-language') updatePack(true);
   if (action === 'return-template') { speech.cancel(); templateMode = true; visit = editInstruction(visit, '', true); confirmed = false; render(false); root.querySelector('#return-date').focus(); }
   if (action === 'free-text') { templateMode = false; visit = editInstruction(visit, visit.originalInstruction, true); confirmed = false; render(false); }
-  if (action === 'install-model') model.install();
-  if (action === 'cancel-model') model.cancel();
+  if (action === 'install-model') { model.cancel();packManager.install(); }
+  if (action === 'cancel-model') { model.cancel();packManager.cancel(); }
   if (action === 'generate-model') { rejectedDraft = null; model.generate(visit); }
   if (action === 'use-original' || action === 'use-draft') { error = ''; model.cancel(); visit = setPatientText(visit, action === 'use-original' ? approvedPlanText(visit) : visit.modelDraft.text, action === 'use-original' ? (visit.handoff ? 'structured' : 'original') : 'model'); patientConfirmed = false; render(false); }
   if (action === 'type-mode') { speech.cancel(); captureMode = 'type'; updateVoiceControls(); root.querySelector('#instruction')?.focus(); }
@@ -402,7 +418,7 @@ function saved() {
 }
 
 function savedCard() {
-  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p>${patientCard(selectedCard.instruction)}${understandingPanel(selectedCard, false)}<p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion >= 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. ${selectedCard.translation ? `Translation pack: ${escape(selectedCard.translation.pack.id)} · ${escape(selectedCard.translation.pack.version)} · demonstration-unvalidated. No professional or community review.` : ""} Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${structuredRecord(selectedCard.handoff)}<p>${selectedCard.consent?`Permission record: dictation ${escape(selectedCard.consent.dictation.decision)}; saving ${escape(selectedCard.consent.storage.decision)}. Fictional demonstration worker attestation.`:"Permission record not captured in this legacy card. Migration has not invented a consent decision."}</p>${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
+  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p>${patientCard(selectedCard.instruction)}${understandingPanel(selectedCard, false)}${portableControls()}<p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion >= 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. ${selectedCard.translation ? `Translation pack: ${escape(selectedCard.translation.pack.id)} · ${escape(selectedCard.translation.pack.version)} · demonstration-unvalidated. No professional or community review.` : ""} Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${structuredRecord(selectedCard.handoff)}<p>${selectedCard.consent?`Permission record: dictation ${escape(selectedCard.consent.dictation.decision)}; saving ${escape(selectedCard.consent.storage.decision)}. Fictional demonstration worker attestation.`:"Permission record not captured in this legacy card. Migration has not invented a consent decision."}</p>${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
 }
 
 function deleteDialog() {
@@ -515,7 +531,7 @@ const speech = createSpeechController({
   onText: text => setInstruction(text),
 });
 function initialHandoff() { return visit.template ? templateHandoff(visit.template,visit.originalInstruction,visit.revision,visit.template.location==='clinic'?'the clinic':'the community clinic') : createHandoff(visit.revision); }
-const model = createModelController({ onState: state => { modelState = state; updateAI(); updateReadiness(); }, onDraft: draft => {
+const model = createModelController({ onState: state => { modelState = state; updateAI(); updateReadiness(); updateTransferPanel(); }, onDraft: draft => {
   if (!vaultUnlocked) return;
   if(draft.type==='extraction' || draft.type==='extraction-rejected') {
     if(!visit || screen!=='review' || !visit.handoff || draft.revision!==visit.revision || draft.handoffRevision!==visit.handoff.revision) return;
@@ -532,7 +548,7 @@ const model = createModelController({ onState: state => { modelState = state; up
 function openAR() {
   if(!vaultUnlocked)return;
   const card = screen === 'complete' && visit && canShare(visit) ? cardFromVisit(visit) : screen === 'savedCard' && isValidCard(selectedCard) ? selectedCard : null;
-  if (!card || arOverlay) return;
+  if (!card || arOverlay) return; closePortable();
   playback.stop(); speech.cancel(); model.cancel(); arSnapshot = structuredClone(card);
   const es=card.language==='es';
   arOverlay=document.createElement('section'); arOverlay.className='ar-dialog'; arOverlay.setAttribute('role','dialog');arOverlay.setAttribute('aria-modal','true');arOverlay.setAttribute('aria-labelledby','ar-heading');arOverlay.lang=card.language;
@@ -559,7 +575,40 @@ function closeAR() {
 
 const ar = createARController({ onState: state => { arState=state; updateAR(); } });
 const playback = createPlaybackController({ onState: state => { playbackState = state; updatePlaybackControls(); } });
-function stopSensitiveMedia() { closeAR(); playback.stop(); speech.clear(); model.cancel(); }
+function portableControls() { return `<section class="portable-entry"><h2>A copy to take with you</h2><p>Print this approved card or download a readable offline file. A file or paper copy is outside the encrypted vault.</p><button class="button secondary" data-action="portable-card">Print or download patient card</button></section>`; }
+function currentApprovedCard() { return screen==='complete' && visit && canShare(visit)?cardFromVisit(visit):screen==='savedCard' && isValidCard(selectedCard)?selectedCard:null; }
+function closePortable() { printStage?.remove();printStage=null;if(portableOverlay){portableOverlay.remove();portableOverlay=null;}portableSnapshot=null;portableExpected=null;portableConfirmed=false;root.inert=false; }
+function openPortable() {
+  const card=currentApprovedCard();if(!vaultUnlocked||!card)return;
+  closeAR();playback.stop();speech.clear();model.cancel();closePortable();
+  portableSnapshot=structuredClone(card);portableExpected=portableStamp(card);
+  portableOverlay=document.createElement('section');portableOverlay.className='portable-dialog';portableOverlay.setAttribute('role','dialog');portableOverlay.setAttribute('aria-modal','true');portableOverlay.setAttribute('aria-labelledby','portable-heading');
+  portableOverlay.innerHTML=`<div class="portable-dialog-content"><header class="portable-toolbar"><h2 id="portable-heading">Patient copy · approved wording</h2><button type="button" class="button secondary" data-portable-action="close">Back to card</button></header>${patientCopyMarkup(patientCopy(portableSnapshot))}<section class="portable-actions"><p>Printing or downloading creates an unencrypted copy outside this vault. Locking or deleting the saved card cannot remove that copy. Use fictional information only.</p><label class="check-label"><input id="portable-confirm" type="checkbox"><span>I intend to create this separate patient copy and understand it is outside the vault.</span></label><div class="form-actions"><button type="button" class="button primary" data-portable-action="print" disabled>Print patient card / Save as PDF</button><button type="button" class="button secondary" data-portable-action="download" disabled>Download offline patient card</button></div><p id="portable-status" role="status" aria-live="polite">Print uses your browser’s dialog. Download creates a standalone .html file without scripts or external resources.</p></section></div>`;
+  portableOverlay.addEventListener('change',event=>{if(event.target.id==='portable-confirm'){portableConfirmed=event.target.checked;for(const b of portableOverlay.querySelectorAll('[data-portable-action="print"],[data-portable-action="download"]'))b.disabled=!portableConfirmed;}});
+  portableOverlay.addEventListener('click',event=>{
+    const action=event.target.closest('[data-portable-action]')?.dataset.portableAction;if(!action)return;event.preventDefault();
+    if(action==='close'){closePortable();root.querySelector('[data-action="portable-card"]')?.focus();return;}
+    const current=currentApprovedCard();if(!vaultUnlocked||!portableConfirmed||!current||portableStamp(current)!==portableExpected){closePortable();return;}
+    if(action==='download'){const blob=new Blob([patientCopyHTML(portableSnapshot)],{type:'text/html;charset=utf-8'});const url=downloadBlob(blob,'visit-bridge-patient-card.html');exportedURLs.add(url);portableOverlay.querySelector('#portable-status').textContent='Patient file handed to your browser for download. Keep this separate copy safe.';}
+    if(action==='print'){
+      printStage?.remove();printStage=document.createElement('div');printStage.className='print-stage';printStage.innerHTML=patientCopyMarkup(patientCopy(portableSnapshot));document.body.append(printStage);
+      try{window.print();}catch{printStage.remove();printStage=null;portableOverlay.querySelector('#portable-status').textContent='Printing is unavailable here. Download the offline card and print it from a browser that supports printing.';}
+    }
+  });
+  document.body.append(portableOverlay);root.inert=true;portableOverlay.querySelector('[data-portable-action="close"]').focus();
+}
+window.addEventListener('afterprint',()=>{printStage?.remove();printStage=null;if(portableOverlay)portableOverlay.querySelector('#portable-status').textContent='Print dialog closed. Your browser controls whether a paper or PDF copy was created.';});
+document.addEventListener('keydown',event=>{
+  if(!portableOverlay)return;
+  if(event.key==='Escape'){event.preventDefault();closePortable();root.querySelector('[data-action="portable-card"]')?.focus();}
+  if(event.key==='Tab'){const controls=[...portableOverlay.querySelectorAll('button:not(:disabled),input')];if(event.shiftKey&&document.activeElement===controls[0]){event.preventDefault();controls.at(-1)?.focus();}else if(!event.shiftKey&&document.activeElement===controls.at(-1)){event.preventDefault();controls[0]?.focus();}}
+});
+const packManager=createPackController({
+  onState:state=>{transferState=state;updateTransferPanel();updateAI();updateReadiness();},
+  onExport:blob=>{if(vaultUnlocked){const url=downloadBlob(blob,'visit-bridge-smollm2-q4-v1.vbmodel');exportedURLs.add(url);}},
+  onInstalled:()=>model.check()
+});
+function stopSensitiveMedia() { closePortable();for(const url of exportedURLs)URL.revokeObjectURL(url);exportedURLs.clear();packManager.cancel(); closeAR(); playback.stop(); speech.clear(); model.cancel(); }
 const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('visit-bridge-vault') : null;
 let remoteLock = false;
 function clearSession(reason) {

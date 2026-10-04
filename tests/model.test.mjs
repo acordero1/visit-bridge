@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModelController } from '../src/model.js';
-import { MODEL_MARKER } from '../src/model-config.js';
+import { MODEL_MARKER, MODEL_REVISION } from '../src/model-config.js';
 
 test('cancel terminates inference and suppresses stale results without replacing patient text', async () => {
   const originalWorker = globalThis.Worker, originalCaches = globalThis.caches;
   const workers = [], states = [], drafts = [];
-  globalThis.caches = { open: async () => ({ match: async () => new Response('installed') }) };
+  globalThis.caches = { open: async () => ({ match: async key => new Response(key===MODEL_MARKER?MODEL_REVISION:'installed') }) };
   globalThis.Worker = class { constructor() { workers.push(this); } postMessage(data) { this.data = data; } terminate() { this.terminated = true; } };
   const controller = createModelController({ onState: value => states.push(value), onDraft: value => drafts.push(value) });
   try {

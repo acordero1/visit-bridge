@@ -201,3 +201,14 @@ The app now starts with device-vault setup/unlock. Create your own passphrase to
 See `docs/device-vault.md` for cryptography, migration, threat model, consent limits and reproducible native IndexedDB tests. The default server does not expose the destructive disposable-origin test runner. 67 automated tests pass; actual IndexedDB and UI checks include migration, cancellation, cross-tab lock and encrypted offline reopening with the server stopped. Physical-device, qualified consent/security and clinical validation remain pending.
 
 Next coding checkpoint: approved portable paper/download cards and verified model-pack import/export. The full original schematic, including marker-based AR, remains retained.
+
+
+## Portable cards and model packs checkpoint
+
+Approved English/Spanish cards now offer a patient-only print preview and standalone offline HTML download, with explicit acknowledgment that the copy leaves the encrypted vault. Approval, exact wording, preparation date and Spanish demonstration status are preserved. Printing is controlled by the browser; downloaded/paper copies cannot be recalled by locking.
+
+Home now supports verified public model-pack import/export, connected installation and cancellation. The real pack is 206,665,468 bytes (about 207 MB), with pinned model/runtime hashes and licenses. Installation stages all files before selecting the complete pack; failed imports retain existing availability. The receiving app shell must already be cached. Speech/voices and Spanish text content are separate resources.
+
+See `docs/portable-cards-and-packs.md` for format, transfer steps, storage costs, tests and limitations. All 76 tests pass. Actual export/import and imported-model inference worked with the receiving application server stopped; this does not establish airplane-mode behavior on the target phone. Patient HTML download and print-dialog cancellation were verified; physical paper/PDF output remains unverified.
+
+Next checkpoint: original marker-scan AR replay, approved action sequence and explicit local-language audio inside AR. The full original schematic is retained.

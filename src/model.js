@@ -24,7 +24,7 @@ export function createModelController({ onState, onDraft }) {
     timer = setTimeout(() => { cancel(); publish('error', 'Local AI timed out. Use your original wording or try again.'); }, data.type === 'install' ? 600000 : 120000);
     worker.postMessage({ ...data, requestId: id });
   }
-  return { cancel, install: () => start({ type: 'install' }), generate: visit => start({ type: 'generate', original: approvedPlanText(visit), revision: visit.revision, language: visit.language }),
+  return { cancel, generate: visit => start({ type: 'generate', original: approvedPlanText(visit), revision: visit.revision, language: visit.language }),
     extract: visit => start({ type: 'extract', original: visit.originalInstruction, revision: visit.revision, workflow: visit.handoff?.workflow || 'other', handoffRevision: visit.handoff?.revision ?? 0 }),
     async check() {
       const checkId = activeId;

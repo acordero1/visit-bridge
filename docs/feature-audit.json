@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "assessedCommit": "dd3a92e",
+  "assessedCommit": "9fa3cf0",
   "date": "2026-10-04",
   "sources": {
     "schematic": "docs/original-schematic.md",
@@ -9,7 +9,7 @@
     "timelineTurn": "01a104c5-9450-7710-a588-7636b175271f"
   },
   "policy": "The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.",
-  "verificationScope": "Baseline dd3a92e plus device-vault checkpoint source inspection, 67 automated tests and native IndexedDB/UI/server-outage checks; see docs/device-vault.md. This is not qualified security, clinical, context-consent or physical-device validation.",
+  "verificationScope": "Baseline 9fa3cf0 plus portable card/model pack checkpoint source inspection, 76 automated tests, real 207 MB export/import and imported-model inference with the receiving app server stopped; see docs/portable-cards-and-packs.md and docs/device-vault.md. This is not full network-disconnection, target-phone, printer/PDF, qualified language, security or clinical validation.",
   "items": [
     {
       "id": "context",
@@ -887,7 +887,7 @@
     {
       "id": "sideload",
       "title": "Portable model installation over constrained connections",
-      "status": "missing",
+      "status": "implemented",
       "sourceSections": [
         2,
         11,
@@ -897,8 +897,21 @@
         1,
         6
       ],
-      "evidence": [],
-      "remaining": "Network installer exists; no import/export of a verified portable model pack or weak-connection/side-loading evidence. Add a local verified pack transfer route and report real sizes.",
+      "evidence": [
+        {
+          "file": "src/model-pack.js",
+          "anchor": "importPack"
+        },
+        {
+          "file": "src/model-pack-manifest.js",
+          "anchor": "PACK_MANIFEST"
+        },
+        {
+          "file": "docs/portable-cards-and-packs.md",
+          "anchor": "Verification"
+        }
+      ],
+      "remaining": "Pinned public pack transfer, staged verification and local import/export implemented. Real 206,665,468-byte archive imported and ran with receiving app server stopped. Physical transfer, full disconnection, quota/low-end performance remain unverified; pack does not install shell, language content or OS voices.",
       "acceptance": "Previously downloaded pack can be installed on a supported device without re-fetching all assets; invalid/incomplete files are refused; no smaller-device feasibility claim without measurement.",
       "phase": "portable",
       "dependencies": [
@@ -935,7 +948,7 @@
     {
       "id": "paper",
       "title": "Printable/offline portable patient summary",
-      "status": "missing",
+      "status": "implemented",
       "sourceSections": [
         1,
         4,
@@ -949,8 +962,21 @@
         10,
         11
       ],
-      "evidence": [],
-      "remaining": "Add approved-only print/download output usable without the patient owning a phone, with date/place, language and review notice retained.",
+      "evidence": [
+        {
+          "file": "src/portable-card.js",
+          "anchor": "patientCopyHTML"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "function openPortable"
+        },
+        {
+          "file": "docs/portable-cards-and-packs.md",
+          "anchor": "Verification"
+        }
+      ],
+      "remaining": "Approved-only print/download software implemented and Spanish HTML verified during server outage. Actual paper/PDF output, target-device readability and local workflow validation remain pending. Exported copies cannot be recalled.",
       "acceptance": "Paper/portable output is readable, matches approved text, preserves Spanish status and works without AR or network; printing hardware availability is stated.",
       "phase": "portable",
       "dependencies": [
