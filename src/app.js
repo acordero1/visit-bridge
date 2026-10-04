@@ -1,12 +1,28 @@
 import { createVisit, editInstruction, instructionError, selectLanguage, confirmVisit,
   patientInstruction, canShare, MAX_INSTRUCTION_LENGTH } from './visit.js';
 
+import { saveApprovedCard } from './cards.js';
+import { cardRepository } from './storage.js';
+import { initializeOffline } from './offline.js';
+
 const root = document.querySelector('#app');
 let visit = null;
 let screen = 'home';
 let error = '';
 let confirmed = false;
 let discardOpen = false;
+let cards = [];
+let selectedCard = null;
+let deleteId = null;
+let storageError = '';
+let cardsLoading = true;
+let saving = false;
+let deleting = false;
+let saveError = '';
+let savedRevision = null;
+let offline = { ready: false, unsupported: false, error: false, updateAvailable: false };
+let installPrompt = null;
+const dateLabel = value => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 const icons = {
   bridge: '<path d="M3 17v-5a9 9 0 0 1 18 0v5M3 14h18M8 14v7m8-7v7"/>',
   arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
@@ -28,7 +44,8 @@ function sidebar() {
   return `<aside class="sidebar"><a class="brand" href="#" data-action="home">${icon('bridge')}<span>Visit Bridge<small>CARE THAT CARRIES ON</small></span></a>
     <div class="workspace-label">WORKER WORKSPACE</div>
     <button class="nav-item ${screen === 'home' ? 'active' : ''}" data-action="home">${icon('home')}Overview</button>
-    <button class="nav-item ${screen !== 'home' ? 'active' : ''}" data-action="resume">${icon('note')}${visit ? 'Current visit' : 'New visit'}${visit ? '<span class="nav-dot"></span>' : ''}</button>
+    <button class="nav-item ${['capture','review','handoff','complete'].includes(screen) ? 'active' : ''}" data-action="resume">${icon('note')}${visit ? 'Current visit' : 'New visit'}${visit ? '<span class="nav-dot"></span>' : ''}</button>
+    <button class="nav-item ${['saved','savedCard'].includes(screen) ? 'active' : ''}" data-action="saved">${icon('card')}Saved cards<span class="nav-count" id="saved-count">${cards.length}</span></button>
     <div class="sidebar-note">${icon('bridge')}<p>A clear next step.<br>A little more confidence.<br>Care that carries on.</p></div>
     <div class="sidebar-footer"><span class="avatar">HW</span><span>Health worker<small>Demo workspace</small></span></div></aside>`;
 }
@@ -38,6 +55,7 @@ function home() {
     <h1 tabindex="-1">A clear next step.<br>For every patient.</h1><p>Turn the next step you’ve chosen into a simple handoff your patient can take with them.</p>
     ${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}<div class="hero-footnote">${icon('shield')}Your decision. Your review. Their next step.</div></div>
     <div class="hero-art" aria-hidden="true"><div class="art-orbit"></div><div class="art-badge">${icon('check')}Worker confirmed</div><div class="example-card"><div class="card-logo">${icon('bridge')}VISIT BRIDGE</div><span class="card-eyebrow">EXAMPLE HANDOFF</span><h2>Your next step</h2><p>Return to the clinic<br>on Tuesday.</p><div class="card-rule"></div><div class="example-meta">A reminder from your health worker<span>English · Read</span></div></div><div class="art-caption">Small instructions.<br>Meaningful connections.</div></div></section>
+    <section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}<div id="install-control"></div></div></section>
     <div class="section-heading"><h2>A handoff in three simple steps</h2><span>Designed around the worker’s decision</span></div>
     <section class="how-grid">${[
       ['01','note','Capture the next step','Write the instruction you have already chosen for your patient.'],
@@ -45,7 +63,7 @@ function home() {
       ['03','card','Make it easy to remember','Open a simple, readable care card on the device you already use.'],
     ].map(([number, name, title, copy]) => `<article class="how-card"><div class="how-top"><span class="icon-tile">${icon(name)}</span><span class="step-number">${number}</span></div><h3>${title}</h3><p>${copy}</p></article>`).join('')}</section>
     <section class="scope-strip">${icon('shield')}<div><strong>Communication support, with the worker in control.</strong><p>Visit Bridge helps communicate a plan you have already decided. It does not diagnose, prescribe, or choose treatment.</p></div><span class="scope-tag">FOUNDATION DEMO</span></section>
-    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('mic')}Voice capture</span><span>${icon('globe')}Local language support</span><span>${icon('wifi')}Offline access</span></div></section>`;
+    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('mic')}Voice capture</span><span>${icon('globe')}Local language support</span><span>${icon('card')}Care-card export</span></div></section>`;
 }
 
 function progress(active) {
@@ -76,17 +94,19 @@ function handoff() {
 
 function complete() {
   const text = patientInstruction(visit);
-  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Worker confirmed</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><p class="completion-note">This card is displayed on this device. It has not been saved, printed, or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
+  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Worker confirmed</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === visit.revision ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || savedRevision === visit.revision ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === visit.revision ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved text is kept in this browser and is not encrypted. Anyone using this browser can read it. Delete it from Saved cards when finished.</small></div><p class="completion-note">${savedRevision === visit.revision ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
 }
 
 function render(focus = true) {
-  root.innerHTML = `<div class="workspace" ${discardOpen ? 'inert' : ''}>${sidebar()}<main class="main"><header class="topbar"><span>${screen === 'home' ? 'Overview' : 'Patient handoff'}</span><div class="topbar-status"><span class="prototype-badge">Prototype</span><span class="session-note">In-memory session</span></div></header><div class="page-content">${({home, capture, review, handoff, complete})[screen]()}</div><footer class="main-footer"><span>Visit Bridge</span><span>World Bank · Small AI for development · Health</span></footer></main></div>${discardOpen ? `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="discard-heading"><h2 id="discard-heading">Discard this visit?</h2><p>Your current instruction will be removed from this session.</p><div class="form-actions">${button('Keep working','keep',true)}${button('Discard visit','discard')}</div></section></div>` : ''}`;
-  if (discardOpen) root.querySelector('[data-action="keep"]').focus();
+  root.innerHTML = `<div class="workspace" ${discardOpen || deleteId ? 'inert' : ''}>${sidebar()}<main class="main"><header class="topbar"><span>${['saved','savedCard'].includes(screen) ? 'Saved care cards' : screen === 'home' ? 'Overview' : 'Patient handoff'}</span><div class="topbar-status"><span class="prototype-badge">Prototype</span><span class="session-note" id="connection-status"></span></div></header><div class="page-content"><div id="offline-notice" class="offline-notice" role="status"></div>${({home, capture, review, handoff, complete, saved, savedCard})[screen]()}</div><footer class="main-footer"><span>Visit Bridge</span><span>World Bank · Small AI for development · Health</span></footer></main></div>${discardOpen ? `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="discard-heading"><h2 id="discard-heading">Discard this visit?</h2><p>Your current instruction will be removed from this session.</p><div class="form-actions">${button('Keep working','keep',true)}${button('Discard visit','discard')}</div></section></div>` : ''}${deleteId ? deleteDialog() : ''}`;
+  updateStatus();
+  if (deleteId) root.querySelector('[data-action="keep-card"]').focus();
+  else if (discardOpen) root.querySelector('[data-action="keep"]').focus();
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
 function navigate(next) { screen = next; error = ''; discardOpen = false; render(); window.scrollTo(0, 0); }
-function start() { visit = createVisit(); confirmed = false; navigate('capture'); }
+function start() { visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
   if (event.target.id === 'instruction') {
@@ -105,6 +125,16 @@ root.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (!action) return;
   event.preventDefault();
+  if (action === 'saved') { navigate('saved'); refreshCards(); }
+  if (action === 'open-card') {
+    selectedCard = cards.find(card => card.id === event.target.closest('[data-card-id]').dataset.cardId);
+    if (selectedCard) navigate('savedCard');
+  }
+  if (action === 'save') saveCurrentCard();
+  if (action === 'request-delete') { deleteId = event.target.closest('[data-card-id]').dataset.cardId; render(false); }
+  if (action === 'keep-card' && !deleting) { deleteId = null; render(); }
+  if (action === 'delete-card') deleteCard();
+  if (action === 'install') promptInstall();
   if (action === 'home') navigate('home');
   if (action === 'start') start();
   if (action === 'resume') visit ? navigate(visit.status === 'confirmed' ? 'handoff' : 'capture') : start();
@@ -130,12 +160,93 @@ root.addEventListener('submit', event => {
   } catch (problem) { error = problem.message; render(false); root.querySelector('.error')?.scrollIntoView({ block: 'center' }); }
 });
 document.addEventListener('keydown', event => {
-  if (!discardOpen) return;
-  if (event.key === 'Escape') { discardOpen = false; render(false); root.querySelector('[data-action="cancel"]').focus(); }
+  if (!discardOpen && !deleteId) return;
+  if (event.key === 'Escape' && deleteId && !deleting) { deleteId = null; render(); return; }
+  if (event.key === 'Escape' && discardOpen) { discardOpen = false; render(false); root.querySelector('[data-action="cancel"]').focus(); }
   if (event.key === 'Tab') {
     const buttons = [...root.querySelectorAll('.modal button')];
     if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons.at(-1).focus(); }
     else if (!event.shiftKey && document.activeElement === buttons.at(-1)) { event.preventDefault(); buttons[0].focus(); }
   }
 });
+function saved() {
+  return `<div class="flow-title"><span class="eyebrow">ON THIS DEVICE</span><h1 tabindex="-1" id="page-heading">Saved care cards</h1><p>Approved copies saved in this browser. They are available offline on this device.</p></div><div class="storage-notice">${icon('shield')}<p>Use fictional information only. Saved text is not encrypted and is visible to anyone using this browser. Browser storage can be cleared or removed by the browser; these cards have no cloud backup.</p></div>${storageError ? `<div class="error" role="alert">${escape(storageError)} ${button('Try again','saved',true)}</div>` : ''}${cardsLoading ? '<p role="status">Loading saved cards…</p>' : !cards.length && !storageError ? `<section class="empty-state">${icon('card')}<h2>No saved cards yet.</h2><p>Prepare a handoff, then choose “Save on this device.”</p>${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}</section>` : `<div class="saved-grid">${cards.map(card => `<article class="saved-item"><span class="confirmed-tag">${icon('check')}Approved copy · English</span><p>${escape(card.instruction.slice(0, 140))}${card.instruction.length > 140 ? '…' : ''}</p><small>Saved ${escape(dateLabel(card.savedAt))}</small><div class="saved-item-actions">${`<button class="button secondary" data-action="open-card" data-card-id="${escape(card.id)}">Open card</button><button class="text-button danger" data-action="request-delete" data-card-id="${escape(card.id)}" aria-label="Delete card saved ${escape(dateLabel(card.savedAt))}">Delete</button>`}</div></article>`).join('')}</div>`}`;
+}
+
+function savedCard() {
+  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Approved copy</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(selectedCard.instruction)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p><div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
+}
+
+function deleteDialog() {
+  return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-heading"><h2 id="delete-heading">Delete this saved card?</h2><p>This removes the saved copy from this browser. It cannot be undone.</p>${error ? `<p class="error" role="alert">${escape(error)}</p>` : ''}<div class="form-actions"><button class="button secondary" data-action="keep-card" ${deleting ? 'disabled' : ''}>Keep card</button><button class="button primary" data-action="delete-card" ${deleting ? 'disabled' : ''}>${deleting ? 'Deleting…' : 'Delete card'}</button></div></section></div>`;
+}
+
+async function refreshCards() {
+  cardsLoading = true; storageError = '';
+  try { cards = await cardRepository.list(); }
+  catch { storageError = 'Saved cards could not be loaded. Device storage may be unavailable. No saved content has been changed.'; }
+  finally {
+    cardsLoading = false;
+    if (screen === 'saved') render(false);
+    else { const counter = root.querySelector('#saved-count'); if (counter) counter.textContent = cards.length; }
+  }
+}
+
+async function saveCurrentCard() {
+  if (saving || !visit || !canShare(visit) || savedRevision === visit.revision) return;
+  const snapshot = { ...visit };
+  saving = true; saveError = ''; render(false);
+  try {
+    const card = await saveApprovedCard(snapshot, cardRepository);
+    cards = [card, ...cards.filter(existing => existing.id !== card.id)];
+    if (visit?.id === snapshot.id && visit.revision === snapshot.revision) savedRevision = snapshot.revision;
+  } catch { saveError = 'This card was not saved. Device storage may be unavailable or full. Keep the card open and try again.'; }
+  finally { saving = false; render(false); }
+}
+
+async function deleteCard() {
+  if (!deleteId || deleting) return;
+  const id = deleteId;
+  deleting = true; error = ''; render(false);
+  try {
+    await cardRepository.remove(id);
+    cards = cards.filter(card => card.id !== id);
+    if (visit?.id === id) savedRevision = null;
+    deleteId = null; selectedCard = null;
+    navigate('saved');
+    const notice = root.querySelector('#offline-notice');
+    notice.textContent = 'Card deleted from this device.'; notice.classList.add('visible');
+  } catch { error = 'The card could not be deleted. It remains saved. Try again.'; }
+  finally { deleting = false; if (deleteId) render(false); }
+}
+
+function updateStatus() {
+  const connection = root.querySelector('#connection-status');
+  if (connection) connection.textContent = navigator.onLine ? 'Device reports online' : 'Device offline';
+  const notice = root.querySelector('#offline-notice');
+  if (notice) {
+    notice.classList.toggle('visible', true);
+    notice.textContent = offline.ready
+      ? `${navigator.onLine ? 'Offline access ready.' : 'You are offline.'} The app and saved cards can open on this device. Unsaved drafts still clear on reload.`
+      : offline.error || offline.unsupported
+        ? 'Offline app loading is unavailable in this browser. Saved cards use device storage; keep this page open when disconnected.'
+        : 'Preparing offline app access. Keep this page open until offline access is ready.';
+    if (offline.updateAvailable) notice.textContent += ' An app update is ready. Close all Visit Bridge tabs and reopen to update.';
+  }
+  const install = root.querySelector('#install-control');
+  if (install) install.innerHTML = installPrompt ? button('Install Visit Bridge','install',true) : '<small>To install, use your browser’s Install app or Add to Home Screen option, where supported.</small>';
+}
+
+async function promptInstall() {
+  if (!installPrompt) return;
+  const prompt = installPrompt; installPrompt = null;
+  try { await prompt.prompt(); await prompt.userChoice; } catch { /* Browser keeps control of install eligibility. */ }
+  updateStatus();
+}
+window.addEventListener('online', updateStatus);
+window.addEventListener('offline', updateStatus);
+window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; updateStatus(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; updateStatus(); });
 render(false);
+refreshCards();
+initializeOffline(state => { offline = state; updateStatus(); });

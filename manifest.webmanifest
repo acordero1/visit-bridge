@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Visit Bridge",
+  "short_name": "Visit Bridge",
+  "description": "Worker-approved care cards, saved on your device for offline access.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f7f2",
+  "theme_color": "#192e29",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

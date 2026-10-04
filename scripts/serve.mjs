@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 const root = new URL('../', import.meta.url);
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || '127.0.0.1';
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
-const allowed = new Set(['/index.html', '/favicon.svg', '/src/app.js', '/src/visit.js', '/src/styles.css']);
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
+const allowed = new Set(['/index.html', '/favicon.svg', '/manifest.webmanifest', '/sw.js', '/icons/icon-192.png', '/icons/icon-512.png',
+  '/src/app.js', '/src/visit.js', '/src/styles.css', '/src/cards.js', '/src/storage.js', '/src/offline.js']);
 http.createServer(async (request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname;
   const target = path === '/' ? '/index.html' : path;
