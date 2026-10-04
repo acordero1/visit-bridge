@@ -16,7 +16,7 @@ export function currentUnderstanding(record) {
   return record?.understanding && validUnderstanding(record.understanding, record) ? record.understanding : null;
 }
 export function saveStamp(visit) {
-  return JSON.stringify([approvedContentStamp(visit), currentUnderstanding(visit)]);
+  return JSON.stringify([approvedContentStamp(visit), currentUnderstanding(visit), visit.consent || null]);
 }
 // Preserve the exact approved text, including order. Symbols are only assigned to known fields.
 export function patientLines(card) {

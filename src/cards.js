@@ -1,3 +1,4 @@
+import { validConsent, permitted, createConsent } from './consent.js';
 import { validUnderstanding, currentUnderstanding } from './understanding.js';
 import { validHandoff, wordingIssue, spanishHandoffSupported } from './handoff.js';
 import { validTemplate, validTranslation, templateInstruction } from './templates.js';
@@ -5,7 +6,7 @@ import { canShare, instructionError, LANGUAGES } from './visit.js';
 
 export function cardFromVisit(visit) {
   if (!canShare(visit)) throw new Error('Review and confirm the instruction before saving it.');
-  return { schemaVersion: 5, understanding: currentUnderstanding(visit) ? structuredClone(visit.understanding) : null, handoff: visit.handoff ? structuredClone(visit.handoff) : null, id: visit.id, instruction: visit.patientText, originalLanguage: visit.originalLanguage, template: visit.template ? structuredClone(visit.template) : null, translation: visit.translation ? structuredClone(visit.translation) : null, originalInstruction: visit.originalInstruction,
+  return { schemaVersion: 6, consent: structuredClone(visit.consent || createConsent()), understanding: currentUnderstanding(visit) ? structuredClone(visit.understanding) : null, handoff: visit.handoff ? structuredClone(visit.handoff) : null, id: visit.id, instruction: visit.patientText, originalLanguage: visit.originalLanguage, template: visit.template ? structuredClone(visit.template) : null, translation: visit.translation ? structuredClone(visit.translation) : null, originalInstruction: visit.originalInstruction,
     patientTextRevision: visit.patientTextRevision, patientApprovedRevision: visit.patientApprovedRevision,
     patientApprovedAt: visit.patientApprovedAt, patientTextOrigin: visit.patientTextOrigin, modelDraft: visit.modelDraft,
     language: visit.language, revision: visit.revision, approvedRevision: visit.approvedRevision,
@@ -13,7 +14,7 @@ export function cardFromVisit(visit) {
 }
 
 export function isValidCard(card) {
-  return [1, 2, 3, 4, 5].includes(card?.schemaVersion) && typeof card.id === 'string' && card.id.length > 0
+  return [1, 2, 3, 4, 5, 6].includes(card?.schemaVersion) && typeof card.id === 'string' && card.id.length > 0
     && typeof card.instruction === 'string' && !instructionError(card.instruction)
     && Number.isInteger(card.revision) && card.revision >= 0 && card.approvedRevision === card.revision
     && LANGUAGES.some(language => language.available && language.code === card.language)
@@ -33,10 +34,12 @@ export function isValidCard(card) {
     && (card.schemaVersion < 4 || card.handoff === null || (validHandoff(card.handoff, card.originalInstruction, card.revision)
       && (card.language === 'en' ? !wordingIssue(card.handoff, card.instruction) : spanishHandoffSupported(card.handoff, card.template))))
     && (card.schemaVersion < 5 || (Object.hasOwn(card, 'understanding') && validUnderstanding(card.understanding, card)))
+    && (card.schemaVersion < 6 || validConsent(card.consent))
     && ['confirmedAt', 'createdAt', 'savedAt'].every(key => typeof card[key] === 'string' && Number.isFinite(Date.parse(card[key])));
 }
 
 export async function saveApprovedCard(visit, repository) {
+  if (!permitted(visit, 'storage')) throw new Error('Record permission to save this card first. Showing the card does not require saving.');
   const card = cardFromVisit(visit);
   if (!isValidCard(card)) throw new Error('This instruction needs to be reviewed again before saving.');
   await repository.save(card);

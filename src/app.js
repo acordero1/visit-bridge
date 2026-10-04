@@ -1,3 +1,5 @@
+import { createSessionController } from './session.js';
+import { permitted, setPermission } from './consent.js';
 import { currentUnderstanding, saveStamp, patientLines } from './understanding.js';
 import { FIELD_LABELS, FIELD_STATES, WORKFLOWS, createHandoff, templateHandoff, editHandoff, changeWorkflow, handoffIssues, handoffText, spanishHandoffSupported, extractionScopeIssue } from './handoff.js';
 import { createVisit, editInstruction, instructionError, selectLanguage, confirmVisit,
@@ -12,6 +14,7 @@ import { TEMPLATE_ID, validTemplate } from './templates.js';
 import { loadLanguagePack, installLanguagePack } from './language-packs.js';
 import { createARController } from './ar.js';
 import { createPlaybackController } from './playback.js';
+let vaultUnlocked = false, vaultReady = false, vaultConfigured = false, legacyPresent = false, vaultBusy = false, vaultError = '', vaultMessage = '', eraseOpen = false, sessionGeneration = 0;
 let playbackState = { status: 'checking', message: 'Checking for a local English voice…', available: false, voiceName: '' };
 let modelState = { status: 'checking', message: 'Checking local AI availability…', installed: false };
 let patientConfirmed = false;
@@ -42,7 +45,7 @@ let cards = [];
 let selectedCard = null;
 let deleteId = null;
 let storageError = '';
-let cardsLoading = true;
+let cardsLoading = false;
 let saving = false;
 let deleting = false;
 let saveError = '';
@@ -77,6 +80,18 @@ const escape = text => String(text).replace(/[&<>"']/g, character => ({ '&':'&am
 const button = (label, action, secondary = false) => `<button class="button ${secondary ? 'secondary' : 'primary'}" data-action="${action}">${label}${!secondary ? icon('arrow') : ''}</button>`;
 const steps = ['Capture', 'Review', 'Handoff'];
 
+function permissionControl(purpose, label) {
+  const value = visit.consent[purpose].decision;
+  return `<section class="permission-panel"><label for="permission-${purpose}">${label}</label><select id="permission-${purpose}" data-permission="${purpose}">${[['not-recorded','Not recorded'],['granted','Permission given'],['declined','Declined']].map(([key,text])=>`<option value="${key}" ${value===key?'selected':''}>${text}</option>`).join('')}</select><small>Fictional demo: record the person’s choice separately for this purpose. This worker attestation is not a validated consent process.${purpose==='dictation'?' Declining leaves typed input available.':' Declining leaves the card available to show without saving.'}</small></section>`;
+}
+function vaultPage() {
+  const title = !vaultReady ? 'Checking device vault…' : vaultConfigured ? 'Unlock your device vault' : 'Protect this device';
+  return `<main class="vault-page"><section class="vault-panel"><span class="eyebrow">VISIT BRIDGE · DEVICE PRIVACY</span><h1 id="page-heading" tabindex="-1">${title}</h1><p>Use fictional information only. Each reload starts locked; unsaved visits are cleared when you lock.</p>${vaultMessage?`<p role="status">${escape(vaultMessage)}</p>`:''}${vaultError?`<p class="error" role="alert">${escape(vaultError)}</p>`:''}${vaultReady ? `<form id="vault-${vaultConfigured?'unlock':'setup'}"><label for="vault-passphrase">${vaultConfigured?'Passphrase':'Create a passphrase'}</label><input id="vault-passphrase" name="passphrase" type="password" autocomplete="${vaultConfigured?'current-password':'new-password'}" maxlength="256" ${vaultConfigured?'':'minlength="15"'} required ${vaultBusy?'disabled':''}>${!vaultConfigured?'<label for="vault-repeat">Repeat passphrase</label><input id="vault-repeat" name="repeat" type="password" autocomplete="new-password" minlength="15" maxlength="256" required><p>Choose 15 or more characters, such as a memorable phrase. We cannot recover a forgotten passphrase. No cloud backup is provided.</p>':''}${legacyPresent?'<p class="translation-notice">Existing unencrypted cards are still on this device. Setup encrypts and verifies every card before removing the originals. If migration fails, originals remain intact. Close any older Visit Bridge tabs; they may still display previously loaded text.</p>':''}<button class="button primary" type="submit" ${vaultBusy?'disabled':''}>${vaultBusy?'Working…':vaultConfigured?'Unlock':'Create vault and protect saved cards'}</button></form><p class="field-help">Saved card contents are encrypted with AES-GCM. The wrapped key is protected by your passphrase. Weak passphrases can still be guessed from a stolen copy of browser storage. An unlocked device or compromised browser can expose information.</p><button class="text-button danger" data-action="vault-erase-open" ${vaultBusy?'disabled':''}>Erase device vault and saved cards</button>${eraseOpen?eraseForm():''}`:''}</section></main>`;
+}
+function eraseForm() { return `<form id="vault-erase" class="permission-panel"><h2>Erase all saved cards?</h2><p>This permanently removes saved cards and vault settings on this browser, including unencrypted legacy cards. It cannot be undone. Public app and language packs stay installed. There is no recovery or remote wipe.</p><label for="erase-confirm">Type ERASE SAVED CARDS to confirm</label><input id="erase-confirm" name="confirmation" autocomplete="off" required><button class="button secondary" type="submit" ${vaultBusy?'disabled':''}>Permanently erase saved cards</button><button class="text-button" type="button" data-action="vault-erase-cancel">Cancel</button></form>`; }
+function privacyPanel() {
+  return `<details class="readiness-panel"><summary>Device vault and privacy controls</summary><p>Vault unlocked. Saved contents are encrypted; text is visible while unlocked. Lock after use. Five minutes of inactivity or one minute in the background locks and clears the unsaved visit. Reload also starts locked.</p><form id="vault-change"><label for="current-passphrase">Current passphrase</label><input id="current-passphrase" name="current" type="password" autocomplete="current-password" maxlength="256" required><label for="new-passphrase">New passphrase</label><input id="new-passphrase" name="next" type="password" autocomplete="new-password" minlength="15" maxlength="256" required><label for="repeat-passphrase">Repeat new passphrase</label><input id="repeat-passphrase" name="repeat" type="password" autocomplete="new-password" minlength="15" maxlength="256" required><button class="button secondary" type="submit" ${vaultBusy?'disabled':''}>Change passphrase and lock</button></form>${vaultError?`<p class="error" role="alert">${escape(vaultError)}</p>`:''}<button class="text-button danger" data-action="vault-erase-open">Erase device vault and saved cards</button>${eraseOpen?eraseForm():''}<small>No recovery, cloud backup or remote revocation. Clearing browser storage can remove all cards. This prototype needs security and clinical validation before real use.</small></details>`;
+}
 function sidebar() {
   return `<aside class="sidebar"><a class="brand" href="#" data-action="home">${icon('bridge')}<span>Visit Bridge<small>CARE THAT CARRIES ON</small></span></a>
     <div class="workspace-label">WORKER WORKSPACE</div>
@@ -119,7 +134,7 @@ function home() {
     <h1 tabindex="-1">A clear next step.<br>For every patient.</h1><p>Turn the next step you’ve chosen into a simple handoff your patient can take with them.</p>
     ${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}<div class="hero-footnote">${icon('shield')}Your decision. Your review. Their next step.</div></div>
     <div class="hero-art" aria-hidden="true"><div class="art-orbit"></div><div class="art-badge">${icon('check')}Worker confirmed</div><div class="example-card"><div class="card-logo">${icon('bridge')}VISIT BRIDGE</div><span class="card-eyebrow">EXAMPLE HANDOFF</span><h2>Your next step</h2><p>Return to the clinic<br>on Tuesday.</p><div class="card-rule"></div><div class="example-meta">A reminder from your health worker<span>English · Read</span></div></div><div class="art-caption">Small instructions.<br>Meaningful connections.</div></div></section>
-    <section id="home-readiness" class="readiness-panel" aria-label="Device readiness">${readinessPanel()}</section><section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}<div id="install-control"></div></div></section>
+    ${privacyPanel()}<section id="home-readiness" class="readiness-panel" aria-label="Device readiness">${readinessPanel()}</section><section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}<div id="install-control"></div></div></section>
     <div class="section-heading"><h2>A handoff in three simple steps</h2><span>Designed around the worker’s decision</span></div>
     <section class="how-grid">${[
       ['01','note','Capture the next step','Type or dictate the instruction you have already chosen for your patient.'],
@@ -140,7 +155,7 @@ function formLayout(active, title, subtitle, content, aside) {
 
 function capture() {
   return formLayout(0, 'What is the next step?', 'Record the instruction you have already chosen for this patient.',
-    `<form id="capture-form"><div class="input-language"><strong>Worker input language: English</strong><p>Type in English or use local English dictation when available. Spanish is a limited patient-output template, not Spanish dictation or general translation.</p></div>${templateMode ? `<section class="voice-panel"><strong>Return-visit template</strong><p>Choose the date and clinic from the plan you already decided. This exact template supports the Spanish demo.</p><label for="return-date">Return date</label><input id="return-date" type="date" value="${escape(templateDate)}" min="2000-01-01" max="2099-12-31" required><label for="return-location">Return location</label><select id="return-location"><option value="clinic" ${templateLocation === "clinic" ? "selected" : ""}>The clinic</option><option value="community-clinic" ${templateLocation === "community-clinic" ? "selected" : ""}>The community clinic</option></select><button type="button" class="text-button" data-action="free-text">Write a different instruction</button></section>` : `<div id="voice-controls">${voiceControls()}</div><button type="button" class="button secondary" data-action="return-template">Use a return-visit template</button>`}<label for="instruction">Your instruction <span>Required</span></label><p class="field-help" id="instruction-help">Use clear, specific wording. Leave out patient names and other identifying details.</p><textarea id="instruction" ${templateMode ? "readonly" : ""} name="instruction" rows="7" maxlength="${MAX_INSTRUCTION_LENGTH}" aria-describedby="instruction-help character-count" placeholder="For example: Return to the clinic on Tuesday." required>${escape(visit.originalInstruction)}</textarea><div class="input-meta"><span>${icon('note')}Written by the health worker</span><span id="character-count">${visit.originalInstruction.length} / ${MAX_INSTRUCTION_LENGTH}</span></div>${templateMode ? "" : '<button type="button" class="sample-button" data-action="sample">Try a sample instruction</button>'}<div class="form-actions"><button type="button" class="button secondary" data-action="home">Back to overview</button><button class="button primary" type="submit">Review instruction${icon('arrow')}</button></div></form>`,
+    `<form id="capture-form"><div class="input-language"><strong>Worker input language: English</strong><p>Type in English or use local English dictation when available. Spanish is a limited patient-output template, not Spanish dictation or general translation.</p></div>${templateMode ? `<section class="voice-panel"><strong>Return-visit template</strong><p>Choose the date and clinic from the plan you already decided. This exact template supports the Spanish demo.</p><label for="return-date">Return date</label><input id="return-date" type="date" value="${escape(templateDate)}" min="2000-01-01" max="2099-12-31" required><label for="return-location">Return location</label><select id="return-location"><option value="clinic" ${templateLocation === "clinic" ? "selected" : ""}>The clinic</option><option value="community-clinic" ${templateLocation === "community-clinic" ? "selected" : ""}>The community clinic</option></select><button type="button" class="text-button" data-action="free-text">Write a different instruction</button></section>` : `${permissionControl("dictation", "Permission to dictate this instruction")}<div id="voice-controls">${voiceControls()}</div><button type="button" class="button secondary" data-action="return-template">Use a return-visit template</button>`}<label for="instruction">Your instruction <span>Required</span></label><p class="field-help" id="instruction-help">Use clear, specific wording. Leave out patient names and other identifying details.</p><textarea id="instruction" ${templateMode ? "readonly" : ""} name="instruction" rows="7" maxlength="${MAX_INSTRUCTION_LENGTH}" aria-describedby="instruction-help character-count" placeholder="For example: Return to the clinic on Tuesday." required>${escape(visit.originalInstruction)}</textarea><div class="input-meta"><span>${icon('note')}Written by the health worker</span><span id="character-count">${visit.originalInstruction.length} / ${MAX_INSTRUCTION_LENGTH}</span></div>${templateMode ? "" : '<button type="button" class="sample-button" data-action="sample">Try a sample instruction</button>'}<div class="form-actions"><button type="button" class="button secondary" data-action="home">Back to overview</button><button class="button primary" type="submit">Review instruction${icon('arrow')}</button></div></form>`,
     `<span class="icon-tile">${icon('note')}</span><h2>Start with your decision.</h2><p>Capture the next step in your own words. You’ll review it before your patient sees it.</p><div class="helper-example"><span>EXAMPLE</span><p>“Return to the clinic on Tuesday.”</p></div><p class="future-note">English dictation runs on-device where supported. You can always type instead.</p>`);
 }
 
@@ -244,11 +259,12 @@ function updatePlaybackControls() {
 
 function complete() {
   const text = patientInstruction(visit);
-  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p>${patientCard(text)}${understandingPanel(visit, true)}<div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === saveStamp(visit) ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || savedRevision === saveStamp(visit) ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === saveStamp(visit) ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved text is kept in this browser and is not encrypted. Anyone using this browser can read it. Delete it from Saved cards when finished.</small></div><p class="completion-note">${savedRevision === saveStamp(visit) ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
+  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p>${patientCard(text)}${understandingPanel(visit, true)}${permissionControl("storage", "Permission to save this card on this device")}<div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === saveStamp(visit) ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || !permitted(visit,'storage') || savedRevision === saveStamp(visit) ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === saveStamp(visit) ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved contents are encrypted in this device vault. Lock after use. There is no cloud backup. Permission to save is separate from permission to dictate. Delete cards when finished.</small></div><p class="completion-note">${savedRevision === saveStamp(visit) ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
 }
 
 function render(focus = true) {
-  root.innerHTML = `<div class="workspace" ${discardOpen || deleteId ? 'inert' : ''}>${sidebar()}<main class="main"><header class="topbar"><span>${['saved','savedCard'].includes(screen) ? 'Saved care cards' : screen === 'home' ? 'Overview' : 'Patient handoff'}</span><div class="topbar-status"><span class="prototype-badge">Prototype</span><span class="session-note" id="connection-status"></span></div></header><div class="page-content"><div id="offline-notice" class="offline-notice" role="status"></div>${({home, capture, review, handoff, complete, saved, savedCard})[screen]()}</div><footer class="main-footer"><span>Visit Bridge</span><span>World Bank · Small AI for development · Health</span></footer></main></div>${discardOpen ? `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="discard-heading"><h2 id="discard-heading">Discard this visit?</h2><p>Your current instruction will be removed from this session.</p><div class="form-actions">${button('Keep working','keep',true)}${button('Discard visit','discard')}</div></section></div>` : ''}${deleteId ? deleteDialog() : ''}`;
+  if (!vaultUnlocked) { root.inert = false; root.innerHTML = vaultPage(); if(focus) root.querySelector("#page-heading")?.focus(); return; }
+  root.innerHTML = `<div class="workspace" ${discardOpen || deleteId ? 'inert' : ''}>${sidebar()}<main class="main"><header class="topbar"><span>${['saved','savedCard'].includes(screen) ? 'Saved care cards' : screen === 'home' ? 'Overview' : 'Patient handoff'}</span><div class="topbar-status"><button class="text-button" data-action="vault-lock">Lock now</button><span class="prototype-badge">Prototype</span><span class="session-note" id="connection-status"></span></div></header><div class="page-content"><div id="offline-notice" class="offline-notice" role="status"></div>${vaultError?`<p class="error" role="alert">${escape(vaultError)}</p>`:""}${({home, capture, review, handoff, complete, saved, savedCard})[screen]()}</div><footer class="main-footer"><span>Visit Bridge</span><span>World Bank · Small AI for development · Health</span></footer></main></div>${discardOpen ? `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="discard-heading"><h2 id="discard-heading">Discard this visit?</h2><p>Your current instruction will be removed from this session.</p><div class="form-actions">${button('Keep working','keep',true)}${button('Discard visit','discard')}</div></section></div>` : ''}${deleteId ? deleteDialog() : ''}`;
   updateStatus();
   updateVoiceControls();
   updatePlaybackControls();
@@ -261,6 +277,7 @@ function navigate(next) { if(next==='review' && reviewMode==='structured' && !vi
 function start() { structuredBackup=null; reviewMode='structured'; extractionProposal=null; speech.cancel(); speech.textEdited(); captureMode = 'type'; templateMode = false; templateDate = ''; templateLocation = 'clinic'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
+  if (!vaultUnlocked) return;
   if (event.target.id === 'instruction') {
     speech.textEdited();
     setInstruction(event.target.value);
@@ -272,6 +289,8 @@ root.addEventListener('input', event => {
   if (event.target.id === 'patient-confirm') patientConfirmed = event.target.checked;
 });
 root.addEventListener('change', event => {
+  if (!vaultUnlocked) return;
+  if(event.target.dataset.permission) { visit = setPermission(visit,event.target.dataset.permission,event.target.value); if(event.target.dataset.permission==='dictation' && !permitted(visit,'dictation')) speech.clear(); const id=event.target.id; render(false); root.querySelector(`#${id}`)?.focus(); return; }
   if(event.target.id==='workflow' || event.target.dataset.state || event.target.dataset.required) {
     model.cancel();
     const h=event.target.id==='workflow' ? changeWorkflow(visit.handoff,event.target.value) : editHandoff(visit.handoff,event.target.dataset.state || event.target.dataset.required,event.target.dataset.state ? {state:event.target.value} : {required:event.target.checked});
@@ -287,6 +306,10 @@ root.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (!action) return;
   event.preventDefault();
+  if(action==='vault-lock') { session.lock(); return; }
+  if(action==='vault-erase-open') { eraseOpen=true; render(false); root.querySelector('#erase-confirm')?.focus(); return; }
+  if(action==='vault-erase-cancel') { eraseOpen=false; render(false); return; }
+  if (!vaultUnlocked || vaultBusy) return;
   if((action==='structured-mode' && reviewMode!=='structured') || (action==='source-mode' && reviewMode!=='source')) { model.cancel(); if(visit.handoff) structuredBackup=structuredClone(visit.handoff); reviewMode=action==='structured-mode'?'structured':'source'; visit=setStructuredHandoff(visit,reviewMode==='structured' ? (structuredBackup?.sourceRevision===visit.revision ? structuredBackup : initialHandoff()) : null); confirmed=false; extractionProposal=null; extractionError=''; render(false); }
   if(action==='inspect-evidence') { evidenceKey=event.target.closest('[data-field]').dataset.field; root.querySelector('#review-source').innerHTML=sourceEvidence(); root.querySelector('#review-source').scrollIntoView({block:'center',behavior:'smooth'}); }
   if(action==='extract-note') { extractionProposal=null; extractionError=''; rejectedExtractionText=''; render(false); model.extract(visit); }
@@ -318,7 +341,7 @@ root.addEventListener('click', event => {
   if (action === 'use-original' || action === 'use-draft') { error = ''; model.cancel(); visit = setPatientText(visit, action === 'use-original' ? approvedPlanText(visit) : visit.modelDraft.text, action === 'use-original' ? (visit.handoff ? 'structured' : 'original') : 'model'); patientConfirmed = false; render(false); }
   if (action === 'type-mode') { speech.cancel(); captureMode = 'type'; updateVoiceControls(); root.querySelector('#instruction')?.focus(); }
   if (action === 'dictate-mode') { captureMode = 'dictate'; updateVoiceControls(); speech.check(); }
-  if (action === 'dictate') speech.start(visit.originalInstruction);
+  if (action === 'dictate' && permitted(visit,'dictation')) speech.start(visit.originalInstruction);
   if (action === 'stop-dictation') speech.stop();
   if (action === 'discard-dictation') speech.discard();
   if (action === 'check-speech') speech.check();
@@ -346,6 +369,8 @@ root.addEventListener('click', event => {
 });
 root.addEventListener('submit', event => {
   event.preventDefault();
+  if (event.target.id.startsWith('vault-')) { handleVaultForm(event.target); return; }
+  if (!vaultUnlocked || vaultBusy) return;
   try {
     if (event.target.id === 'capture-form') {
       if (speech.isBusy()) { error = 'Stop dictation and check the captured words before reviewing.'; return; }
@@ -373,11 +398,11 @@ document.addEventListener('keydown', event => {
   }
 });
 function saved() {
-  return `<div class="flow-title"><span class="eyebrow">ON THIS DEVICE</span><h1 tabindex="-1" id="page-heading">Saved care cards</h1><p>Approved copies saved in this browser. They are available offline on this device.</p></div><div class="storage-notice">${icon('shield')}<p>Use fictional information only. Saved text is not encrypted and is visible to anyone using this browser. Browser storage can be cleared or removed by the browser; these cards have no cloud backup.</p></div>${storageError ? `<div class="error" role="alert">${escape(storageError)} ${button('Try again','saved',true)}</div>` : ''}${cardsLoading ? '<p role="status">Loading saved cards…</p>' : !cards.length && !storageError ? `<section class="empty-state">${icon('card')}<h2>No saved cards yet.</h2><p>Prepare a handoff, then choose “Save on this device.”</p>${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}</section>` : `<div class="saved-grid">${cards.map(card => `<article class="saved-item"><span class="confirmed-tag">${icon('check')}Approved copy · ${card.language === "es" ? "Español · unvalidated demo" : "English"}</span><p>${escape(card.instruction.slice(0, 140))}${card.instruction.length > 140 ? '…' : ''}</p><small>Saved ${escape(dateLabel(card.savedAt))}<br>Understanding: ${escape(currentUnderstanding(card)?.result === "needs-follow-up" ? "Needs follow-up" : currentUnderstanding(card)?.result === "understood" ? "Understood · worker observed" : currentUnderstanding(card)?.result === "clarified" ? "Clarified · not confirmed" : "Not recorded")}</small><div class="saved-item-actions">${`<button class="button secondary" data-action="open-card" data-card-id="${escape(card.id)}">Open card</button><button class="text-button danger" data-action="request-delete" data-card-id="${escape(card.id)}" aria-label="Delete card saved ${escape(dateLabel(card.savedAt))}">Delete</button>`}</div></article>`).join('')}</div>`}`;
+  return `<div class="flow-title"><span class="eyebrow">ON THIS DEVICE</span><h1 tabindex="-1" id="page-heading">Saved care cards</h1><p>Approved copies saved in this browser. They are available offline on this device.</p></div><div class="storage-notice">${icon('shield')}<p>Use fictional information only. Saved contents are encrypted in this device vault and visible while unlocked. Lock after use. Browser storage can be cleared or removed; these cards have no cloud backup.</p></div>${storageError ? `<div class="error" role="alert">${escape(storageError)} ${button('Try again','saved',true)}</div>` : ''}${cardsLoading ? '<p role="status">Loading saved cards…</p>' : !cards.length && !storageError ? `<section class="empty-state">${icon('card')}<h2>No saved cards yet.</h2><p>Prepare a handoff, then choose “Save on this device.”</p>${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}</section>` : `<div class="saved-grid">${cards.map(card => `<article class="saved-item"><span class="confirmed-tag">${icon('check')}Approved copy · ${card.language === "es" ? "Español · unvalidated demo" : "English"}</span><p>${escape(card.instruction.slice(0, 140))}${card.instruction.length > 140 ? '…' : ''}</p><small>Saved ${escape(dateLabel(card.savedAt))}<br>Understanding: ${escape(currentUnderstanding(card)?.result === "needs-follow-up" ? "Needs follow-up" : currentUnderstanding(card)?.result === "understood" ? "Understood · worker observed" : currentUnderstanding(card)?.result === "clarified" ? "Clarified · not confirmed" : "Not recorded")}</small><div class="saved-item-actions">${`<button class="button secondary" data-action="open-card" data-card-id="${escape(card.id)}">Open card</button><button class="text-button danger" data-action="request-delete" data-card-id="${escape(card.id)}" aria-label="Delete card saved ${escape(dateLabel(card.savedAt))}">Delete</button>`}</div></article>`).join('')}</div>`}`;
 }
 
 function savedCard() {
-  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p>${patientCard(selectedCard.instruction)}${understandingPanel(selectedCard, false)}<p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion >= 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. ${selectedCard.translation ? `Translation pack: ${escape(selectedCard.translation.pack.id)} · ${escape(selectedCard.translation.pack.version)} · demonstration-unvalidated. No professional or community review.` : ""} Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${structuredRecord(selectedCard.handoff)}${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
+  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p>${patientCard(selectedCard.instruction)}${understandingPanel(selectedCard, false)}<p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion >= 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. ${selectedCard.translation ? `Translation pack: ${escape(selectedCard.translation.pack.id)} · ${escape(selectedCard.translation.pack.version)} · demonstration-unvalidated. No professional or community review.` : ""} Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${structuredRecord(selectedCard.handoff)}<p>${selectedCard.consent?`Permission record: dictation ${escape(selectedCard.consent.dictation.decision)}; saving ${escape(selectedCard.consent.storage.decision)}. Fictional demonstration worker attestation.`:"Permission record not captured in this legacy card. Migration has not invented a consent decision."}</p>${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
 }
 
 function deleteDialog() {
@@ -385,10 +410,12 @@ function deleteDialog() {
 }
 
 async function refreshCards() {
+  const token=sessionGeneration; if(!vaultUnlocked) return;
   cardsLoading = true; storageError = '';
-  try { cards = await cardRepository.list(); }
-  catch { storageError = 'Saved cards could not be loaded. Device storage may be unavailable. No saved content has been changed.'; }
+  try { const loaded = await cardRepository.list(); if(token!==sessionGeneration)return; cards=loaded; }
+  catch { if(token!==sessionGeneration)return; if(!cardRepository.isUnlocked()) { session.lock('Vault changed. Unlock again to continue.'); return; } storageError = 'Saved cards could not be loaded. Device storage may be unavailable. No saved content has been changed.'; }
   finally {
+    if(token!==sessionGeneration)return;
     cardsLoading = false;
     if (screen === 'saved') render(false);
     else { const counter = root.querySelector('#saved-count'); if (counter) counter.textContent = cards.length; }
@@ -396,31 +423,33 @@ async function refreshCards() {
 }
 
 async function saveCurrentCard() {
-  if (saving || !visit || !canShare(visit) || savedRevision === saveStamp(visit)) return;
-  const snapshot = { ...visit };
+  if (!vaultUnlocked || saving || !visit || !permitted(visit,'storage') || !canShare(visit) || savedRevision === saveStamp(visit)) return;
+  const token=sessionGeneration, snapshot = structuredClone(visit);
   saving = true; saveError = ''; render(false);
   try {
     const card = await saveApprovedCard(snapshot, cardRepository);
+    if(token!==sessionGeneration)return;
     cards = [card, ...cards.filter(existing => existing.id !== card.id)];
     if (visit?.id === snapshot.id && saveStamp(visit) === saveStamp(snapshot)) savedRevision = saveStamp(snapshot);
-  } catch { saveError = 'This card was not saved. Device storage may be unavailable or full. Keep the card open and try again.'; }
-  finally { saving = false; render(false); }
+  } catch { if(token!==sessionGeneration)return; saveError = 'This card was not saved. Device storage may be unavailable or full. Keep the card open and try again.'; }
+  finally { if(token===sessionGeneration) { saving = false; render(false); } }
 }
 
 async function deleteCard() {
   if (!deleteId || deleting) return;
-  const id = deleteId;
+  const token=sessionGeneration, id = deleteId;
   deleting = true; error = ''; render(false);
   try {
     await cardRepository.remove(id);
+    if(token!==sessionGeneration)return;
     cards = cards.filter(card => card.id !== id);
     if (visit?.id === id) savedRevision = null;
     deleteId = null; selectedCard = null;
     navigate('saved');
     const notice = root.querySelector('#offline-notice');
     notice.textContent = 'Card deleted from this device.'; notice.classList.add('visible');
-  } catch { error = 'The card could not be deleted. It remains saved. Try again.'; }
-  finally { deleting = false; if (deleteId) render(false); }
+  } catch { if(token!==sessionGeneration)return; error = 'The card could not be deleted. It remains saved. Try again.'; }
+  finally { if(token===sessionGeneration) { deleting = false; if (deleteId) render(false); } }
 }
 
 function updateStatus() {
@@ -448,7 +477,7 @@ async function promptInstall() {
   updateStatus();
 }
 function setInstruction(text) {
-  if (!visit || screen !== 'capture') return;
+  if (!vaultUnlocked || !visit || screen !== 'capture') return;
   visit = editInstruction(visit, text); confirmed = false;
   const field = root.querySelector('#instruction');
   if (field && field.value !== text) field.value = text;
@@ -459,7 +488,7 @@ function setInstruction(text) {
 function voiceControls() {
   const busy = ['starting', 'listening', 'stopping'].includes(speechState.status);
   const ready = ['ready', 'review'].includes(speechState.status);
-  return `<div class="capture-modes" role="group" aria-label="Instruction input method"><button type="button" class="mode-button ${captureMode === 'type' ? 'selected' : ''}" data-action="type-mode" aria-pressed="${captureMode === 'type'}">${icon('note')}Type instruction</button><button type="button" class="mode-button ${captureMode === 'dictate' ? 'selected' : ''}" data-action="dictate-mode" aria-pressed="${captureMode === 'dictate'}" ${busy ? 'disabled' : ''}>${icon('mic')}Dictate instruction</button></div>${captureMode === 'dictate' ? `<section class="voice-panel ${busy ? 'recording' : ''}" aria-label="On-device English dictation"><div class="voice-heading">${icon('mic')}<strong>${speechState.status === 'listening' ? 'Microphone active' : speechState.status === 'starting' ? 'Waiting for microphone access' : speechState.status === 'stopping' ? 'Stopping microphone' : 'On-device English dictation'}</strong><span class="voice-badge">Local only</span></div><p id="speech-status" role="status">${escape(speechState.message)}</p>${speechState.interim ? `<div class="interim-preview"><span>HEARD SO FAR · NOT YET ACCEPTED</span><p>${escape(speechState.interim)}</p></div>` : ''}<div class="voice-actions">${busy ? `<button type="button" class="button primary" data-action="stop-dictation" ${speechState.status === 'stopping' ? 'disabled' : ''}>${speechState.status === 'starting' ? 'Cancel microphone request' : 'Stop recording'}</button>` : `<button type="button" class="button secondary" data-action="dictate" ${ready ? '' : 'disabled'}>${icon('mic')}${speechState.status === 'review' ? 'Dictate more' : 'Start dictation'}</button>`}${speechState.status === 'downloadable' ? '<button type="button" class="text-button" data-action="download-speech">Download English speech pack</button>' : ['error','blocked','unsupported','waiting','idle'].includes(speechState.status) ? '<button type="button" class="text-button" data-action="check-speech">Check again</button>' : ''}${speechState.canDiscard ? '<button type="button" class="text-button" data-action="discard-dictation">Discard dictated words</button>' : ''}</div><small>Speak only the next step you chose. Use fictional demo information and omit identifying details. Stop recording to edit the accepted words below. No raw audio is saved by Visit Bridge.</small></section>` : ''}`;
+  return `<div class="capture-modes" role="group" aria-label="Instruction input method"><button type="button" class="mode-button ${captureMode === 'type' ? 'selected' : ''}" data-action="type-mode" aria-pressed="${captureMode === 'type'}">${icon('note')}Type instruction</button><button type="button" class="mode-button ${captureMode === 'dictate' ? 'selected' : ''}" data-action="dictate-mode" aria-pressed="${captureMode === 'dictate'}" ${busy ? 'disabled' : ''}>${icon('mic')}Dictate instruction</button></div>${captureMode === 'dictate' ? `<section class="voice-panel ${busy ? 'recording' : ''}" aria-label="On-device English dictation"><div class="voice-heading">${icon('mic')}<strong>${speechState.status === 'listening' ? 'Microphone active' : speechState.status === 'starting' ? 'Waiting for microphone access' : speechState.status === 'stopping' ? 'Stopping microphone' : 'On-device English dictation'}</strong><span class="voice-badge">Local only</span></div><p id="speech-status" role="status">${escape(speechState.message)}</p>${speechState.interim ? `<div class="interim-preview"><span>HEARD SO FAR · NOT YET ACCEPTED</span><p>${escape(speechState.interim)}</p></div>` : ''}<div class="voice-actions">${busy ? `<button type="button" class="button primary" data-action="stop-dictation" ${speechState.status === 'stopping' ? 'disabled' : ''}>${speechState.status === 'starting' ? 'Cancel microphone request' : 'Stop recording'}</button>` : `<button type="button" class="button secondary" data-action="dictate" ${ready && permitted(visit,'dictation') ? '' : 'disabled'}>${icon('mic')}${speechState.status === 'review' ? 'Dictate more' : 'Start dictation'}</button>`}${speechState.status === 'downloadable' ? '<button type="button" class="text-button" data-action="download-speech">Download English speech pack</button>' : ['error','blocked','unsupported','waiting','idle'].includes(speechState.status) ? '<button type="button" class="text-button" data-action="check-speech">Check again</button>' : ''}${speechState.canDiscard ? '<button type="button" class="text-button" data-action="discard-dictation">Discard dictated words</button>' : ''}</div><small>Speak only the next step you chose. Use fictional demo information and omit identifying details. Stop recording to edit the accepted words below. No raw audio is saved by Visit Bridge.</small></section>` : ''}`;
 }
 
 function updateVoiceControls() {
@@ -487,6 +516,7 @@ const speech = createSpeechController({
 });
 function initialHandoff() { return visit.template ? templateHandoff(visit.template,visit.originalInstruction,visit.revision,visit.template.location==='clinic'?'the clinic':'the community clinic') : createHandoff(visit.revision); }
 const model = createModelController({ onState: state => { modelState = state; updateAI(); updateReadiness(); }, onDraft: draft => {
+  if (!vaultUnlocked) return;
   if(draft.type==='extraction' || draft.type==='extraction-rejected') {
     if(!visit || screen!=='review' || !visit.handoff || draft.revision!==visit.revision || draft.handoffRevision!==visit.handoff.revision) return;
     if(draft.type==='extraction') { extractionProposal=draft.handoff; extractionError=''; } else { extractionProposal=null; extractionError=draft.message; rejectedExtractionText=draft.text || ''; }
@@ -500,14 +530,15 @@ const model = createModelController({ onState: state => { modelState = state; up
 } });
 
 function openAR() {
+  if(!vaultUnlocked)return;
   const card = screen === 'complete' && visit && canShare(visit) ? cardFromVisit(visit) : screen === 'savedCard' && isValidCard(selectedCard) ? selectedCard : null;
   if (!card || arOverlay) return;
   playback.stop(); speech.cancel(); model.cancel(); arSnapshot = structuredClone(card);
   const es=card.language==='es';
   arOverlay=document.createElement('section'); arOverlay.className='ar-dialog'; arOverlay.setAttribute('role','dialog');arOverlay.setAttribute('aria-modal','true');arOverlay.setAttribute('aria-labelledby','ar-heading');arOverlay.lang=card.language;
-  arOverlay.innerHTML=`<header class="ar-header"><div><span class="eyebrow">VISIT BRIDGE · ${es?'REALIDAD AUMENTADA':'SPATIAL AR'}</span><h2 id="ar-heading">${es?'Su próximo paso, a la vista':'Keep your next step in view'}</h2></div><button type="button" class="button secondary" data-ar-action="exit">${es?'Volver a la tarjeta':'Back to card'}</button></header><div class="ar-intro"><p>${es?'Al iniciar, su navegador solicitará acceso a su entorno. La cámara se usa para colocar esta tarjeta. Visit Bridge no graba, guarda ni envía imágenes.':'Start AR asks your browser for access to your surroundings. The camera is used to place this card. Visit Bridge does not record, save or send images.'}</p><p>${es?'Use información ficticia. La tarjeta normal sigue disponible.':'Use fictional information. The regular card remains available.'}</p></div><article class="ar-preview">${es?`<p class="translation-notice">${escape(card.translation.pack.labels.demoNotice)}</p>`:''}<span class="eyebrow">${es?'TEXTO APROBADO':'APPROVED CARD TEXT'}</span><p>${escape(card.instruction)}</p></article><footer class="ar-footer"><p id="ar-status" role="status" aria-live="polite"></p><div id="ar-actions"></div><small>${es?'Mueva el teléfono lentamente. Coloque la tarjeta en una superficie despejada.':'Move slowly. Place the card on a clear surface. Surface tracking needs a compatible device.'}</small></footer>`;
+  arOverlay.innerHTML=`<header class="ar-header"><div><span class="eyebrow">VISIT BRIDGE · ${es?'REALIDAD AUMENTADA':'SPATIAL AR'}</span><h2 id="ar-heading">${es?'Su próximo paso, a la vista':'Keep your next step in view'}</h2></div><button type="button" class="button secondary" data-ar-action="lock">${es?"Bloquear":"Lock now"}</button><button type="button" class="button secondary" data-ar-action="exit">${es?'Volver a la tarjeta':'Back to card'}</button></header><div class="ar-intro"><p>${es?'Al iniciar, su navegador solicitará acceso a su entorno. La cámara se usa para colocar esta tarjeta. Visit Bridge no graba, guarda ni envía imágenes.':'Start AR asks your browser for access to your surroundings. The camera is used to place this card. Visit Bridge does not record, save or send images.'}</p><p>${es?'Use información ficticia. La tarjeta normal sigue disponible.':'Use fictional information. The regular card remains available.'}</p></div><article class="ar-preview">${es?`<p class="translation-notice">${escape(card.translation.pack.labels.demoNotice)}</p>`:''}<span class="eyebrow">${es?'TEXTO APROBADO':'APPROVED CARD TEXT'}</span><p>${escape(card.instruction)}</p></article><footer class="ar-footer"><p id="ar-status" role="status" aria-live="polite"></p><div id="ar-actions"></div><small>${es?'Mueva el teléfono lentamente. Coloque la tarjeta en una superficie despejada.':'Move slowly. Place the card on a clear surface. Surface tracking needs a compatible device.'}</small></footer>`;
   arOverlay.addEventListener('beforexrselect',event=>{if(event.target.closest?.('button'))event.preventDefault();});
-  arOverlay.addEventListener('click',event=>{const action=event.target.closest('[data-ar-action]')?.dataset.arAction;if(!action)return;event.preventDefault(); if(action==='exit')closeAR();if(action==='start')ar.start(arSnapshot,arOverlay);if(action==='place')ar.place();if(action==='reposition')ar.reposition();if(action==='larger')ar.resize(.1);if(action==='smaller')ar.resize(-.1);if(action==='rotate')ar.rotate(Math.PI/12);if(action==='retry')ar.check();});
+  arOverlay.addEventListener('click',event=>{const action=event.target.closest('[data-ar-action]')?.dataset.arAction;if(!action)return;event.preventDefault(); if(action==='lock'){session.lock();return;}if(action==='exit')closeAR();if(action==='start')ar.start(arSnapshot,arOverlay);if(action==='place')ar.place();if(action==='reposition')ar.reposition();if(action==='larger')ar.resize(.1);if(action==='smaller')ar.resize(-.1);if(action==='rotate')ar.rotate(Math.PI/12);if(action==='retry')ar.check();});
   document.body.append(arOverlay);root.inert=true;updateAR();arOverlay.querySelector('[data-ar-action="exit"]').focus();ar.check();
 }
 function updateAR() {
@@ -528,14 +559,54 @@ function closeAR() {
 
 const ar = createARController({ onState: state => { arState=state; updateAR(); } });
 const playback = createPlaybackController({ onState: state => { playbackState = state; updatePlaybackControls(); } });
-window.addEventListener('pagehide', () => { closeAR(); playback.stop(); speech.cancel(); model.cancel(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { closeAR(); playback.stop(); speech.cancel(); model.cancel(); } });
+function stopSensitiveMedia() { closeAR(); playback.stop(); speech.clear(); model.cancel(); }
+const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('visit-bridge-vault') : null;
+let remoteLock = false;
+function clearSession(reason) {
+  sessionGeneration++; vaultUnlocked=false; cardRepository.lock();
+  stopSensitiveMedia(); visit=null; cards=[]; selectedCard=null; deleteId=null; screen='home';
+  structuredBackup=null; rejectedDraft=null; extractionProposal=null; rejectedExtractionText=''; extractionError=''; evidenceKey=null;
+  templateDate=''; templateLocation='clinic'; templateMode=false; captureMode='type'; confirmed=false; patientConfirmed=false;
+  discardOpen=false; savedRevision=null; storageError=''; error=''; saveError=''; saving=false; deleting=false; cardsLoading=false;
+  eraseOpen=false; vaultBusy=false; vaultError=''; vaultMessage=reason;
+  render(); inspectVault(); if(!remoteLock) channel?.postMessage({type:'lock'});
+}
+const session = createSessionController({onLock:clearSession,stopMedia:stopSensitiveMedia});
+channel?.addEventListener('message',event=>{ if(event.data?.type==='lock') { remoteLock=true; session.lock('Locked by another Visit Bridge tab. Unlock to continue.'); remoteLock=false; } });
+async function inspectVault() {
+  const token=sessionGeneration;
+  try { const state=await cardRepository.inspect(); if(token!==sessionGeneration)return; vaultConfigured=state.configured; legacyPresent=state.legacy; vaultReady=true; }
+  catch { if(token!==sessionGeneration)return; vaultError='Device vault could not be opened. Close older tabs and reload. Nothing has been erased.'; vaultReady=false; }
+  if(!vaultUnlocked)render(false);
+}
+async function handleVaultForm(form) {
+  if(vaultBusy)return;
+  const data=new FormData(form), action=form.id;
+  if(action==='vault-erase' && data.get('confirmation')!=='ERASE SAVED CARDS') { vaultError='Type ERASE SAVED CARDS exactly to confirm permanent deletion.'; render(false); return; }
+  if(['vault-setup','vault-change'].includes(action) && data.get(action==='vault-change'?'next':'passphrase')!==data.get('repeat')) { vaultError='Passphrases must match.'; render(false); return; }
+  const token=sessionGeneration; vaultBusy=true; vaultError=''; form.reset(); render(false);
+  try {
+    if(action==='vault-erase') { await cardRepository.erase(); if(token!==sessionGeneration)return; session.lock('Device vault and saved cards erased. Public packs remain installed.'); await inspectVault(); return; }
+    if(action==='vault-change') { await cardRepository.changePassphrase(data.get('current'),data.get('next')); if(token!==sessionGeneration)return; session.lock('Passphrase changed. Unlock using the new passphrase.'); return; }
+    if(action==='vault-setup') { await cardRepository.setup(data.get('passphrase')); if(token!==sessionGeneration)return; channel?.postMessage({type:'lock'}); }
+    else if(action==='vault-unlock') await cardRepository.unlock(data.get('passphrase'));
+    else throw new Error('Unsupported vault action.');
+    if(token!==sessionGeneration)return;
+    vaultUnlocked=true; vaultConfigured=true; legacyPresent=false; vaultMessage=''; session.start(); render(); await refreshCards();
+    if(document.hidden)session.visibility(true);
+  } catch(problem) { if(token!==sessionGeneration)return; vaultError=problem.message || 'Vault operation failed. Nothing has been erased.'; }
+  finally { for(const key of ['current','next','repeat','passphrase','confirmation'])data.delete(key); if(token===sessionGeneration) { vaultBusy=false; render(false); } }
+}
+for(const event of ['pointerdown','keydown','input'])document.addEventListener(event,()=>session.touch(),{passive:true});
+window.addEventListener('pagehide',()=>session.lock('Page closed or reloaded. Unlock to continue.'));
+window.addEventListener('pageshow',event=>{ if(event.persisted) { session.lock('Restored page starts locked.'); inspectVault(); } });
+document.addEventListener('visibilitychange',()=>session.visibility(document.hidden));
 window.addEventListener('online', updateStatus);
 window.addEventListener('offline', updateStatus);
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; updateStatus(); });
 window.addEventListener('appinstalled', () => { installPrompt = null; updateStatus(); });
 render(false);
-refreshCards();
+inspectVault();
 initializeOffline(state => { offline = state; updateStatus(); });
 
 updatePack();

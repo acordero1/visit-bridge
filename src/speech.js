@@ -154,6 +154,7 @@ export function createSpeechController({ environment = globalThis, onState, onTe
     emit('ready', 'Dictated words discarded. Your text from before dictation is restored.', { interim: '', canDiscard: false });
   }
   function textEdited() { undoText = null; state.canDiscard = false; onState({ ...state }); }
-  return { check, install, start, stop, cancel, discard, textEdited,
+  function clear() { cancel(); undoText = null; emit('idle', 'Check dictation availability after unlocking.', { interim: '', canDiscard: false }); }
+  return { check, install, start, stop, cancel, clear, discard, textEdited,
     isBusy: () => BUSY.has(state.status), getState: () => ({ ...state }) };
 }

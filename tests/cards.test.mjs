@@ -1,9 +1,10 @@
+import { setPermission } from '../src/consent.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createVisit, editInstruction, selectLanguage, confirmPatientText, confirmVisit } from '../src/visit.js';
 import { cardFromVisit, isValidCard, saveApprovedCard } from '../src/cards.js';
 
-const approved = () => confirmPatientText(selectLanguage(confirmVisit(editInstruction(createVisit(), 'Return Tuesday.\nAsk for the community nurse.'), true), 'en'), true);
+const approved = () => setPermission(confirmPatientText(selectLanguage(confirmVisit(editInstruction(createVisit(), 'Return Tuesday.\nAsk for the community nurse.'), true), 'en'), true),'storage','granted');
 test('only approved selected-language instructions reach storage', async () => {
   let writes = 0;
   const repository = { save: async () => { writes++; } };

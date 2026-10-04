@@ -1,3 +1,4 @@
+import { createConsent } from './consent.js';
 import { approvedContentStamp, UNDERSTANDING_RESULTS } from './understanding.js';
 import { approveHandoff, handoffReady, handoffText, wordingIssue, spanishHandoffSupported } from './handoff.js';
 import { templateInstruction, validTemplate, validTranslation } from './templates.js';
@@ -6,7 +7,7 @@ export const LANGUAGES = [{ code: 'en', name: 'English', available: true }, { co
 
 export function createVisit() {
   const now = new Date().toISOString();
-  return { id: crypto.randomUUID(), originalInstruction: '', language: '',
+  return { consent: createConsent(), id: crypto.randomUUID(), originalInstruction: '', language: '',
     understanding: null, languageSource: null, handoff: null, template: null, translation: null, originalLanguage: 'en', status: 'draft', revision: 0, approvedRevision: null,
     patientText: '', patientTextRevision: 0, patientApprovedRevision: null, patientApprovedAt: null, patientTextOrigin: 'original', modelDraft: null,
     createdAt: now, updatedAt: now, confirmedAt: null };

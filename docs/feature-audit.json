@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "assessedCommit": "d38c8e7",
+  "assessedCommit": "dd3a92e",
   "date": "2026-10-04",
   "sources": {
     "schematic": "docs/original-schematic.md",
@@ -9,7 +9,7 @@
     "timelineTurn": "01a104c5-9450-7710-a588-7636b175271f"
   },
   "policy": "The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.",
-  "verificationScope": "Baseline d38c8e7 plus patient-understanding checkpoint source inspection, 57 automated tests and recorded browser checks; see docs/patient-understanding.md. Software behavior is not clinical, human-comprehension or target-device validation.",
+  "verificationScope": "Baseline dd3a92e plus device-vault checkpoint source inspection, 67 automated tests and native IndexedDB/UI/server-outage checks; see docs/device-vault.md. This is not qualified security, clinical, context-consent or physical-device validation.",
   "items": [
     {
       "id": "context",
@@ -589,7 +589,7 @@
           "anchor": "isValidCard"
         }
       ],
-      "remaining": "Schema 5 saves understanding against the exact approved snapshot; schemas 1\u20134 remain readable. Current records are plaintext until encrypted-storage is implemented.",
+      "remaining": "Schema 6 adds independent purpose permissions and preserves approved understanding; schemas 1\u20135 migrate unchanged and reopen after unlock. Maintain encrypted transactional writes and the original approval guards.",
       "acceptance": "Save succeeds after transaction commit; reopening retains approval/provenance; cancellation and delete failures preserve correct state.",
       "phase": "maintain",
       "dependencies": []
@@ -597,7 +597,7 @@
     {
       "id": "encryption",
       "title": "Encrypted local encounter storage",
-      "status": "missing",
+      "status": "implemented",
       "sourceSections": [
         11,
         13,
@@ -609,15 +609,19 @@
       ],
       "evidence": [
         {
-          "file": "src/storage.js",
-          "anchor": "indexedDB.open"
+          "file": "src/vault-crypto.js",
+          "anchor": "AES-GCM"
         },
         {
-          "file": "src/app.js",
-          "anchor": "is not encrypted"
+          "file": "src/storage.js",
+          "anchor": "clearLegacy"
+        },
+        {
+          "file": "docs/device-vault.md",
+          "anchor": "600,000"
         }
       ],
-      "remaining": "Implement an encrypted vault, documented key management and safe migration of legacy plaintext synthetic cards. Do not silently destroy or falsely relabel old records.",
+      "remaining": "Implemented for fictional cards, with verified atomic migration, protected keys and ciphertext at rest. User must complete vault setup; until then legacy cards remain plaintext. Qualified security and target-device validation remain pending.",
       "acceptance": "Stored payload is authenticated ciphertext; wrong key fails safely; original records are migrated only with a documented recovery/commit path; do not claim full device compromise protection.",
       "phase": "privacy",
       "dependencies": [
@@ -628,7 +632,7 @@
     {
       "id": "lock",
       "title": "App lock, session timeout and explicit privacy control",
-      "status": "missing",
+      "status": "implemented",
       "sourceSections": [
         8,
         13
@@ -637,8 +641,17 @@
         3,
         8
       ],
-      "evidence": [],
-      "remaining": "Add a visible lock, unlock flow, inactivity timeout, memory/session clearing and stop active mic/audio/AR/inference when locking.",
+      "evidence": [
+        {
+          "file": "src/session.js",
+          "anchor": "hiddenMs = 60000"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "clearSession"
+        }
+      ],
+      "remaining": "Explicit, inactivity, background/page lifecycle and cross-tab locks clear sensitive application state and cancel media/late work. Physical-device timer/media behavior and stronger OS/device management remain unverified.",
       "acceptance": "A shared-device user sees no saved instructions before unlock; timeout ends active sessions; key lifetime/reset behavior is documented.",
       "phase": "privacy",
       "dependencies": [
@@ -660,15 +673,19 @@
       ],
       "evidence": [
         {
-          "file": "src/app.js",
-          "anchor": "fictional"
+          "file": "src/consent.js",
+          "anchor": "fictional-demo-worker-attestation"
         },
         {
-          "file": "src/speech.js",
-          "anchor": "start"
+          "file": "src/cards.js",
+          "anchor": "permitted(visit, 'storage')"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "Permission to dictate"
         }
       ],
-      "remaining": "There are explicit start/save actions and browser access prompts, but no encounter-level patient recording/save consent flow. Define and implement the demonstration consent step appropriate to the chosen context.",
+      "remaining": "Separate not-recorded/granted/declined dictation and saving controls, timestamps, admission guards and alternatives are implemented for fictional encounters. Remains partial until a real authorized context has a qualified consent procedure; code cannot establish legal or informed consent.",
       "acceptance": "Worker records consent/decline as required by the workflow; denial preserves typed/non-recorded alternatives; notices describe actual retention and sharing.",
       "phase": "privacy",
       "dependencies": [
@@ -707,7 +724,7 @@
     {
       "id": "device-loss",
       "title": "Credible shared/lost-device behavior",
-      "status": "partial",
+      "status": "implemented",
       "sourceSections": [
         13,
         17
@@ -718,11 +735,15 @@
       ],
       "evidence": [
         {
-          "file": "README.md",
-          "anchor": "not encrypted"
+          "file": "docs/device-vault.md",
+          "anchor": "Forgotten passphrases"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "ERASE SAVED CARDS"
         }
       ],
-      "remaining": "Current README honestly describes public browser access but does not meet the protected-storage target. Document lock/key recovery/deletion limits and production device-management needs.",
+      "remaining": "Documented unlocked/shared-device exposure, offline guessing, no recovery/backups/remote wipe, browser eviction, logical deletion and incomplete protection against compromised devices. Production security and institutional device-management validation remain pending.",
       "acceptance": "Describe exactly who can decrypt and read, what a lost/shared device exposes, and recovery/erasure limitations; no claim of remote revocation without a real service.",
       "phase": "privacy",
       "dependencies": [

@@ -97,3 +97,9 @@ test('dictated edits invalidate previous approval and cannot bypass worker revie
   assert.equal(visit.status, 'draft');
   f.controller.cancel();
 });
+test('privacy clearing removes interim and undo text and ignores late dictation',async()=>{
+ const f=fixture();await f.controller.check();f.controller.start('Secret synthetic words');const mic=f.instances.at(-1);
+ mic.onresult({results:[result('Another synthetic line')]});f.controller.clear();const count=f.texts.length;
+ mic.onresult({results:[result('Late words')]});f.controller.discard();assert.equal(f.texts.length,count);
+ assert.equal(f.controller.getState().interim,'');assert.equal(f.controller.getState().canDiscard,false);
+});

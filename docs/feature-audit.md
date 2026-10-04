@@ -1,17 +1,17 @@
 # Visit Bridge feature audit
 
-Assessment baseline: Git commit `d38c8e7`, 2026-10-04.
+Assessment baseline: Git commit `dd3a92e`, 2026-10-04.
 
 The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.
 
-Baseline d38c8e7 plus patient-understanding checkpoint source inspection, 57 automated tests and recorded browser checks; see docs/patient-understanding.md. Software behavior is not clinical, human-comprehension or target-device validation.
+Baseline dd3a92e plus device-vault checkpoint source inspection, 67 automated tests and native IndexedDB/UI/server-outage checks; see docs/device-vault.md. This is not qualified security, clinical, context-consent or physical-device validation.
 
 ## Coverage summary
 
-- **partial:** 9
-- **implemented:** 15
+- **partial:** 8
+- **implemented:** 18
 - **needs-validation:** 6
-- **missing:** 14
+- **missing:** 12
 - **future:** 1
 
 These are requirement counts with unequal scope, not a completion percentage. A source-section mapping is traceability, not proof of perfect semantic completeness.
@@ -25,8 +25,8 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 1. **Context and device decisions, alongside development.** Record the chosen frontline role, target setting, real existing device, browser and Spanish-language relevance. Obtain fluent/professional/community review when available. The software cannot manufacture human review, clinic access, or hardware measurements. Keep each pending item visible. The earlier phone question remains unanswered; do not assume a compatible AR phone.
 2. **Structured administrative handoff and explicit uncertainty — implementation checkpoint completed; field-model/device validation tracked separately.** Add action/date/time/place/item/task and optional separately labeled patient-reported information. Preserve the source and span provenance. Use unknown/ambiguous states; never infer a date or referral decision. Add constrained local-model extraction and validated output schemas, with a complete typed baseline. Put source, fields and model draft side by side. Keep clinical content outside supported model transformation. Changes revoke approval and future understanding results. Validate no new facts, uncertain date, missing required fields, optional blanks and rejected output. Do not collect patient concerns merely because a field exists.
 3. **Patient understanding — implementation completed; human/device validation pending.** Add one approved action per line, simple action-specific symbols and a worker-facing teach-back prompt. Record understood, clarified or needs-follow-up against the exact approved revision. Let the worker replay/clarify without automatic patient scoring. Add Home pack readiness and explicit input language. Save/reopen understanding status with the card. Do not equate marking understood with proven medical comprehension.
-4. **Next coding checkpoint: encrypted vault and privacy.** Add authenticated encrypted local payloads, protected key handling, explicit lock/unlock, inactivity timeout and active-session cancellation on lock. Specify encounter recording/save consent and lost/shared-device behavior. Plan safe legacy-record migration, recovery/reset limits and deletion without silently losing saved cards. Current plaintext storage remains clearly disclosed until migration actually happens; no production-health-data safety claim.
-5. **Portable patient card and installation checkpoint.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. Add a local verified model-pack import/export path and explicit weak-connection/side-loading instructions. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
+4. **Encrypted vault and privacy — implementation checkpoint completed; security/context/device validation remains pending.** Authenticated full-payload encryption, passphrase-protected keys, explicit lock/unlock, inactivity/background/page lifecycle locking, media cancellation, independent fictional dictation/save permission, verified atomic legacy migration, passphrase change, deliberate erase and cross-tab write fencing are implemented. Legacy records remain plaintext until the user completes setup. See docs/device-vault.md for tested behavior and recovery/device-loss limits; no production-health-data safety claim.
+5. **Next coding checkpoint: portable patient card and installation.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. Add a local verified model-pack import/export path and explicit weak-connection/side-loading instructions. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
 6. **Original marker-scan AR replay checkpoint.** Add the original printed/on-screen visual marker and offline lookup of the correct approved card. Unknown or stale markers must not select a different card. Show the approved action sequence and explicit local-language audio replay inside AR. Keep existing surface-placement AR as an additional mode. Validate on the actual phone; unsupported capabilities retain plain text/audio. Test scanning/replay offline and compare with the plain-card experience before claiming benefit.
 7. **Full offline/device and localization verification checkpoint.** Once the above flows exist, run the complete create/organize/review/explain/understanding/encrypted-save/reopen/delete journey in actual airplane mode. Measure cold/warm model latency, device memory method, pack transfer size, speech behavior, pronunciation and AR tracking. Inspect network behavior. Obtain and record genuine qualified/fluent/community review; do not remove the Spanish demonstration notice without evidence. If a participant/device cannot be obtained, the requirement remains pending.
 8. **Evidence and baseline checkpoint.** Run 10–20 synthetic common/uncertain scenarios; record fidelity, introduced facts, corrections/rejections, completion and time. Compare the same tasks with the plain form/paper baseline. Obtain consented comprehension/local-worker feedback where possible. Keep scripted results separate from human results; report device, language, sample, method and limits. Use no invented adherence, diagnosis, clinical-safety or health-outcome claims. Record country/year/source for problem evidence separately from model/evaluation inputs.
@@ -252,7 +252,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Evidence:** `src/storage.js` — `cardRepository`; `src/cards.js` — `isValidCard`
 
-**Remaining:** Schema 5 saves understanding against the exact approved snapshot; schemas 1–4 remain readable. Current records are plaintext until encrypted-storage is implemented.
+**Remaining:** Schema 6 adds independent purpose permissions and preserves approved understanding; schemas 1–5 migrate unchanged and reopen after unlock. Maintain encrypted transactional writes and the original approval guards.
 
 **Accept when:** Save succeeds after transaction commit; reopening retains approval/provenance; cancellation and delete failures preserve correct state.
 
@@ -260,11 +260,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Encrypted local encounter storage (encryption)
 
-**Status:** missing · **Phase:** privacy · **Original schematic:** 11, 13, 20 · **Original timeline:** 3, 8
+**Status:** implemented · **Phase:** privacy · **Original schematic:** 11, 13, 20 · **Original timeline:** 3, 8
 
-**Evidence:** `src/storage.js` — `indexedDB.open`; `src/app.js` — `is not encrypted`
+**Evidence:** `src/vault-crypto.js` — `AES-GCM`; `src/storage.js` — `clearLegacy`; `docs/device-vault.md` — `600,000`
 
-**Remaining:** Implement an encrypted vault, documented key management and safe migration of legacy plaintext synthetic cards. Do not silently destroy or falsely relabel old records.
+**Remaining:** Implemented for fictional cards, with verified atomic migration, protected keys and ciphertext at rest. User must complete vault setup; until then legacy cards remain plaintext. Qualified security and target-device validation remain pending.
 
 **Accept when:** Stored payload is authenticated ciphertext; wrong key fails safely; original records are migrated only with a documented recovery/commit path; do not claim full device compromise protection.
 
@@ -272,11 +272,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### App lock, session timeout and explicit privacy control (lock)
 
-**Status:** missing · **Phase:** privacy · **Original schematic:** 8, 13 · **Original timeline:** 3, 8
+**Status:** implemented · **Phase:** privacy · **Original schematic:** 8, 13 · **Original timeline:** 3, 8
 
-**Evidence:** No implementation evidence recorded.
+**Evidence:** `src/session.js` — `hiddenMs = 60000`; `src/app.js` — `clearSession`
 
-**Remaining:** Add a visible lock, unlock flow, inactivity timeout, memory/session clearing and stop active mic/audio/AR/inference when locking.
+**Remaining:** Explicit, inactivity, background/page lifecycle and cross-tab locks clear sensitive application state and cancel media/late work. Physical-device timer/media behavior and stronger OS/device management remain unverified.
 
 **Accept when:** A shared-device user sees no saved instructions before unlock; timeout ends active sessions; key lifetime/reset behavior is documented.
 
@@ -286,9 +286,9 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Status:** partial · **Phase:** privacy · **Original schematic:** 6, 7, 13 · **Original timeline:** 3, 4
 
-**Evidence:** `src/app.js` — `fictional`; `src/speech.js` — `start`
+**Evidence:** `src/consent.js` — `fictional-demo-worker-attestation`; `src/cards.js` — `permitted(visit, 'storage')`; `src/app.js` — `Permission to dictate`
 
-**Remaining:** There are explicit start/save actions and browser access prompts, but no encounter-level patient recording/save consent flow. Define and implement the demonstration consent step appropriate to the chosen context.
+**Remaining:** Separate not-recorded/granted/declined dictation and saving controls, timestamps, admission guards and alternatives are implemented for fictional encounters. Remains partial until a real authorized context has a qualified consent procedure; code cannot establish legal or informed consent.
 
 **Accept when:** Worker records consent/decline as required by the workflow; denial preserves typed/non-recorded alternatives; notices describe actual retention and sharing.
 
@@ -308,11 +308,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Credible shared/lost-device behavior (device-loss)
 
-**Status:** partial · **Phase:** privacy · **Original schematic:** 13, 17 · **Original timeline:** 3, 8
+**Status:** implemented · **Phase:** privacy · **Original schematic:** 13, 17 · **Original timeline:** 3, 8
 
-**Evidence:** `README.md` — `not encrypted`
+**Evidence:** `docs/device-vault.md` — `Forgotten passphrases`; `src/app.js` — `ERASE SAVED CARDS`
 
-**Remaining:** Current README honestly describes public browser access but does not meet the protected-storage target. Document lock/key recovery/deletion limits and production device-management needs.
+**Remaining:** Documented unlocked/shared-device exposure, offline guessing, no recovery/backups/remote wipe, browser eviction, logical deletion and incomplete protection against compromised devices. Production security and institutional device-management validation remain pending.
 
 **Accept when:** Describe exactly who can decrypt and read, what a lost/shared device exposes, and recovery/erasure limitations; no claim of remote revocation without a real service.
 

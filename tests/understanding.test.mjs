@@ -1,3 +1,4 @@
+import { setPermission } from '../src/consent.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -5,7 +6,7 @@ import { createVisit, editInstruction, confirmVisit, selectLanguage, confirmPati
 import { cardFromVisit, isValidCard, saveApprovedCard } from '../src/cards.js';
 import { createHandoff, editHandoff } from '../src/handoff.js';
 import { currentUnderstanding, saveStamp, patientLines } from '../src/understanding.js';
-const approve = () => confirmPatientText(selectLanguage(confirmVisit(editInstruction(createVisit(),'Return to the clinic on Tuesday.'),true),'en'),true);
+const approve = () => setPermission(confirmPatientText(selectLanguage(confirmVisit(editInstruction(createVisit(),'Return to the clinic on Tuesday.'),true),'en'),true),'storage','granted');
 const pack = JSON.parse(await readFile(new URL('../packs/es-return-visit-v1.1.json',import.meta.url)));
 test('each worker result is approval-gated, saved and reopened without recording patient response', async()=>{
  assert.throws(()=>markUnderstanding(createVisit(),'understood'));

@@ -7,8 +7,10 @@ const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || '127.0.0.1';
 const types = { '.json': 'application/json; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 const allowed = new Set(['/index.html', '/favicon.svg', '/manifest.webmanifest', '/sw.js', '/packs/es-return-visit-v1.json', '/packs/es-return-visit-v1.1.json', '/icons/icon-192.png', '/icons/icon-512.png',
-  '/src/app.js', '/src/visit.js', '/src/styles.css', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js', '/src/handoff.js', '/src/understanding.js', '/src/playback.js', '/src/templates.js', '/src/language-packs.js', '/src/ar.js', '/src/ar-renderer.js',
+  '/src/app.js', '/src/visit.js', '/src/styles.css', '/src/cards.js', '/src/storage.js', '/src/vault-crypto.js', '/src/consent.js', '/src/session.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js', '/src/handoff.js', '/src/understanding.js', '/src/playback.js', '/src/templates.js', '/src/language-packs.js', '/src/ar.js', '/src/ar-renderer.js',
   '/vendor/transformers.min.js', '/vendor/ort-wasm-simd-threaded.jsep.mjs', '/vendor/ort-wasm-simd-threaded.jsep.wasm']);
+// The native test runner is served only on an explicitly disposable QA server.
+if (process.env.QA_VAULT === '1') { allowed.add('/tests/browser-vault.html'); allowed.add('/tests/browser-vault.mjs'); }
 http.createServer(async (request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname;
   const target = path === '/' ? '/index.html' : path;
