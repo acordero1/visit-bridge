@@ -1,6 +1,7 @@
-const CACHE_NAME = 'visit-bridge-shell-v4';
+const CACHE_NAME = 'visit-bridge-shell-v9';
 const ASSETS = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png',
-  '/src/styles.css', '/src/app.js', '/src/visit.js', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js'];
+  '/src/styles.css', '/src/app.js', '/src/visit.js', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js'];
+const RUNTIME = ['/vendor/transformers.min.js', '/vendor/ort-wasm-simd-threaded.jsep.mjs', '/vendor/ort-wasm-simd-threaded.jsep.wasm'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' })))));
@@ -16,9 +17,9 @@ self.addEventListener('activate', event => {
 });
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.origin !== self.location.origin || !ASSETS.includes(url.pathname)) return;
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || (!ASSETS.includes(url.pathname) && !RUNTIME.includes(url.pathname))) return;
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
+    const cache = await caches.open(RUNTIME.includes(url.pathname) ? 'visit-bridge-model-smollm2-135m-v1' : CACHE_NAME);
     return (await cache.match(url.pathname)) || fetch(event.request);
   })());
 });

@@ -325,3 +325,17 @@ textarea:read-only{background:#f3f5ee}
 @media(max-width:560px){.voice-panel{padding:14px}.voice-heading{gap:5px}.voice-heading strong{font-size:11px}.voice-badge{font-size:8px}.mode-button{font-size:11px;padding:10px 6px}.voice-actions{align-items:stretch;flex-direction:column;gap:4px}.voice-actions .text-button{text-align:left}}
 @media(max-width:800px){.device-panel{align-items:flex-start}.saved-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.device-panel{flex-direction:column;padding:20px}.device-actions{width:100%;max-width:none}.saved-item{padding:20px}.saved-item-actions .button{width:auto}.nav-count{margin-left:4px;font-size:9px;padding:2px 5px}.sidebar{gap:2px}.brand{font-size:15px}.brand>.icon{width:24px;height:24px}.nav-item{padding:8px}.offline-notice{padding:12px;font-size:11px}.save-success{align-items:flex-start}.save-success .icon{margin-top:4px}}
+
+.source-panel { margin-top: 28px; padding: 22px; background: var(--cream, #f6f5ef); border-radius: 14px; }
+.source-panel .instruction-text { margin: 12px 0; font-size: 21px; }
+.source-panel small, .draft-panel small { color: #53635c; line-height: 1.6; }
+.draft-panel { margin: 22px 0; border: 1px solid #aac4b6; padding: 22px; border-radius: 14px; background: #edf6ef; }
+.draft-panel p { white-space: pre-wrap; font-size: 22px; line-height: 1.55; }
+.draft-panel .button { display: flex; margin-top: 18px; }
+.audit-details { text-align: left; margin: 22px auto; max-width: 680px; padding: 18px; background: #f2f4ee; border-radius: 12px; overflow-wrap: anywhere; }
+.audit-details summary { cursor: pointer; font-weight: 600; }
+.audit-details blockquote { white-space: pre-wrap; margin: 18px 0; }
+#ai-controls .voice-actions { margin-bottom: 14px; }
+#patient-instruction { width: 100%; box-sizing: border-box; }
+@media (max-width: 600px) { #ai-controls .button { width: 100%; white-space: normal; } .preview-heading { align-items: flex-start; gap: 12px; } }
+.rejected-draft { background: #fff6ed; border-color: #dcc4aa; }

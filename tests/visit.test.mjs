@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVisit, editInstruction, confirmVisit, selectLanguage, canShare, patientInstruction, instructionError } from '../src/visit.js';
+import { createVisit, editInstruction, confirmVisit, selectLanguage, confirmPatientText, canShare, patientInstruction, instructionError } from '../src/visit.js';
 
 test('sharing requires worker confirmation and an available selected language', () => {
   let visit = editInstruction(createVisit(), 'Return to the clinic on Tuesday.');
@@ -9,6 +9,8 @@ test('sharing requires worker confirmation and an available selected language', 
   visit = confirmVisit(visit, true);
   assert.equal(canShare(visit), false);
   visit = selectLanguage(visit, 'en');
+  assert.equal(canShare(visit), false);
+  visit = confirmPatientText(visit, true);
   assert.equal(canShare(visit), true);
   assert.equal(patientInstruction(visit), visit.originalInstruction);
 });
@@ -19,7 +21,7 @@ test('changing an approved instruction revokes approval and prevents sharing', (
   assert.equal(edited.approvedRevision, null);
   assert.equal(canShare(edited), false);
   assert.throws(() => patientInstruction(edited));
-  assert.equal(canShare(confirmVisit(edited, true)), true);
+  assert.equal(canShare(confirmPatientText(confirmVisit(edited, true), true)), true);
 });
 test('empty, oversized and unsupported language input is rejected', () => {
   assert.ok(instructionError('  \n '));
@@ -30,5 +32,5 @@ test('empty, oversized and unsupported language input is rejected', () => {
 test('patient text preserves exact worker wording without adding instructions', () => {
   const original = '  Return Tuesday.\nAsk for the community nurse.  ';
   const visit = selectLanguage(confirmVisit(editInstruction(createVisit(), original), true), 'en');
-  assert.equal(patientInstruction(visit), original);
+  assert.equal(patientInstruction(confirmPatientText(visit, true)), original);
 });

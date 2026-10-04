@@ -1,10 +1,14 @@
 import { createVisit, editInstruction, instructionError, selectLanguage, confirmVisit,
-  patientInstruction, canShare, MAX_INSTRUCTION_LENGTH } from './visit.js';
+  patientInstruction, canShare, setPatientText, confirmPatientText, visitStamp, MAX_INSTRUCTION_LENGTH } from './visit.js';
 
 import { saveApprovedCard } from './cards.js';
 import { cardRepository } from './storage.js';
 import { initializeOffline } from './offline.js';
 import { createSpeechController } from './speech.js';
+import { createModelController } from './model.js';
+let modelState = { status: 'checking', message: 'Checking local AI availability…', installed: false };
+let patientConfirmed = false;
+let rejectedDraft = null;
 
 const root = document.querySelector('#app');
 let visit = null;
@@ -90,15 +94,23 @@ function review() {
     `<span class="icon-tile">${icon('shield')}</span><h2>You stay in control.</h2><p>Only an instruction you have reviewed and confirmed can become a patient handoff.</p><p>If you edit the wording, you’ll review and confirm it again.</p>`);
 }
 
+function aiControls() {
+  const busy = ['installing','loading','generating'].includes(modelState.status);
+  return `<div class="voice-heading">${icon('shield')}<strong>Optional on-device AI draft</strong><span class="voice-badge">English · local</span></div><p role="status">${escape(modelState.message)}</p><div class="voice-actions">${busy ? '<button type="button" class="button secondary" data-action="cancel-model">Cancel</button>' : modelState.installed ? `<button type="button" class="button secondary" data-action="generate-model" ${visit.language !== 'en' ? 'disabled' : ''}>Draft simpler wording</button>` : `<button type="button" class="button secondary" data-action="install-model" ${['unsupported','checking'].includes(modelState.status) ? 'disabled' : ''}>Install local AI · about 207 MB</button>`}</div><small>SmolLM2-135M runs in this browser. Installation needs internet; drafting uses cached files. A small model can lose or change meaning. Check every word before approving. Performance depends on device memory and speed.</small>`;
+}
+function updateAI() {
+  const panel = root.querySelector('#ai-controls'); if (panel) panel.innerHTML = aiControls();
+}
 function handoff() {
-  return formLayout(2, 'Prepare the patient handoff', 'Choose the patient language and preview the approved instruction.',
-    `<form id="handoff-form"><label for="language">Patient language <span>Required</span></label><p class="field-help" id="language-help">English is available for this demo. Additional languages need a validated language pack.</p><select id="language" required aria-describedby="language-help"><option value="">Select a language</option><option value="en" ${visit.language === 'en' ? 'selected' : ''}>English · demo</option></select><div class="format-box"><span class="icon-tile">${icon('card')}</span><div><strong>Readable care card</strong><p>Show the instruction on this device.</p></div><span class="format-tag">Available</span></div><p class="future-note">Spoken playback and translated explanations are planned for later phases.</p><div class="panel-heading preview-heading"><span class="eyebrow">PATIENT PREVIEW</span><span class="confirmed-tag">${icon('check')}Worker confirmed</span></div><div class="patient-preview"><span>Your next step</span><p>${escape(visit.originalInstruction)}</p><small>Instruction from your health worker · ${visit.language ? 'English' : 'Language not yet selected'}</small></div><div class="form-actions">${button('Back to review','review',true)}<button class="button primary" type="submit">Prepare care card${icon('arrow')}</button></div></form>`,
-    `<span class="icon-tile">${icon('globe')}</span><h2>Ready to explain together.</h2><p>Show the patient the instruction and give them a chance to ask questions.</p><p>This first version displays the exact wording you confirmed.</p>`);
+  patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision;
+  return formLayout(2, 'Prepare the patient handoff', 'Keep your original instruction. Review the patient wording separately.',
+    `<form id="handoff-form"><label for="language">Patient language <span>Required</span></label><p class="field-help">English is available. Other languages need validated packs.</p><select id="language" required><option value="">Select a language</option><option value="en" ${visit.language === 'en' ? 'selected' : ''}>English · demo</option></select><div class="source-panel"><span class="eyebrow">ORIGINAL · WORKER APPROVED</span><blockquote class="instruction-text">${escape(visit.originalInstruction)}</blockquote><small>This is the evidence for your final wording. It remains unchanged.</small></div><section id="ai-controls" class="voice-panel" aria-label="Local AI drafting">${aiControls()}</section>${rejectedDraft ? `<section class="draft-panel rejected-draft"><span class="eyebrow">MODEL OUTPUT REJECTED · CANNOT BE SELECTED</span><p>${escape(rejectedDraft.text)}</p><small>${escape(rejectedDraft.message)} Your final wording has not changed.</small></section>` : ''}${visit.modelDraft ? `<section class="draft-panel"><span class="eyebrow">MODEL SUGGESTION · NOT APPROVED</span><p>${escape(visit.modelDraft.text)}</p><small>Basic checks passed; meaning still needs your review.</small><button type="button" class="button secondary" data-action="use-draft">Use this draft for review</button></section>` : ''}<div class="panel-heading preview-heading"><label for="patient-instruction">Final patient wording</label><button type="button" class="text-button" data-action="use-original">Use original</button></div><textarea id="patient-instruction" rows="5" maxlength="${MAX_INSTRUCTION_LENGTH}" required>${escape(visit.patientText)}</textarea><p class="field-help" id="patient-origin">${escape(visit.patientTextOrigin === 'original' ? 'Your original wording' : visit.patientTextOrigin === 'model' ? 'Model draft selected for your review' : 'Wording edited by you')}. No diagnosis or new treatment should be added.</p><label class="check-label"><input type="checkbox" id="patient-confirm" ${patientConfirmed ? 'checked' : ''}><span>I compared this wording with my original instruction. The actions, details and cautions are unchanged, and I approve this exact patient wording.</span></label><div class="form-actions">${button('Back to review','review',true)}<button class="button primary" type="submit">Approve & prepare care card${icon('arrow')}</button></div></form>`,
+    `<span class="icon-tile">${icon('globe')}</span><h2>Your words. Your approval.</h2><p>Use the original, request an optional local draft, or edit the wording yourself. AI never chooses the patient’s next step.</p><p>Speak with the patient to check that the instruction makes sense. Any change requires your approval again.</p>`);
 }
 
 function complete() {
   const text = patientInstruction(visit);
-  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Worker confirmed</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === visit.revision ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || savedRevision === visit.revision ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === visit.revision ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved text is kept in this browser and is not encrypted. Anyone using this browser can read it. Delete it from Saved cards when finished.</small></div><p class="completion-note">${savedRevision === visit.revision ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
+  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Worker confirmed</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === visitStamp(visit) ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || savedRevision === visitStamp(visit) ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === visitStamp(visit) ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved text is kept in this browser and is not encrypted. Anyone using this browser can read it. Delete it from Saved cards when finished.</small></div><p class="completion-note">${savedRevision === visitStamp(visit) ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
 }
 
 function render(focus = true) {
@@ -110,7 +122,7 @@ function render(focus = true) {
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
-function navigate(next) { speech.cancel(); screen = next; error = ''; discardOpen = false; render(); window.scrollTo(0, 0); if (next === 'capture') speech.check(); }
+function navigate(next) { speech.cancel(); model.cancel(); rejectedDraft = null; screen = next; error = ''; discardOpen = false; render(); window.scrollTo(0, 0); if (next === 'capture') speech.check(); if (next === 'handoff') model.check(); }
 function start() { speech.cancel(); speech.textEdited(); captureMode = 'type'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
@@ -119,10 +131,13 @@ root.addEventListener('input', event => {
     setInstruction(event.target.value);
   }
   if (event.target.id === 'worker-confirm') confirmed = event.target.checked;
+  if (event.target.id === 'patient-instruction') { model.cancel(); visit = setPatientText(visit, event.target.value); patientConfirmed = false; rejectedDraft = null; root.querySelector('#patient-confirm').checked = false; root.querySelector('#patient-origin').textContent = 'Wording edited by you. No diagnosis or new treatment should be added.'; }
+  if (event.target.id === 'patient-confirm') patientConfirmed = event.target.checked;
 });
 root.addEventListener('change', event => {
   if (event.target.id === 'language') {
-    visit = event.target.value ? selectLanguage(visit, event.target.value) : { ...visit, language: '', languageSource: null };
+    model.cancel(); patientConfirmed = false;
+    visit = event.target.value ? selectLanguage(visit, event.target.value) : { ...visit, language: '', languageSource: null, patientApprovedRevision: null, patientApprovedAt: null, modelDraft: null };
     const position = window.scrollY; render(false); document.querySelector('#language').focus(); window.scrollTo(0, position);
   }
 });
@@ -130,6 +145,10 @@ root.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (!action) return;
   event.preventDefault();
+  if (action === 'install-model') model.install();
+  if (action === 'cancel-model') model.cancel();
+  if (action === 'generate-model') { rejectedDraft = null; model.generate(visit); }
+  if (action === 'use-original' || action === 'use-draft') { error = ''; model.cancel(); visit = setPatientText(visit, action === 'use-original' ? visit.originalInstruction : visit.modelDraft.text, action === 'use-original' ? 'original' : 'model'); patientConfirmed = false; render(false); }
   if (action === 'type-mode') { speech.cancel(); captureMode = 'type'; updateVoiceControls(); root.querySelector('#instruction')?.focus(); }
   if (action === 'dictate-mode') { captureMode = 'dictate'; updateVoiceControls(); speech.check(); }
   if (action === 'dictate') speech.start(visit.originalInstruction);
@@ -154,7 +173,7 @@ root.addEventListener('click', event => {
   if (action === 'edit') navigate('capture');
   if (action === 'review') { confirmed = visit.status === 'confirmed'; navigate('review'); }
   if (action === 'handoff') navigate('handoff');
-  if (action === 'cancel') { speech.cancel(); discardOpen = true; render(false); }
+  if (action === 'cancel') { speech.cancel(); model.cancel(); discardOpen = true; render(false); }
   if (action === 'keep') { discardOpen = false; render(false); root.querySelector('[data-action="cancel"]').focus(); }
   if (action === 'discard' || action === 'finish') { visit = null; confirmed = false; navigate('home'); }
 });
@@ -167,7 +186,7 @@ root.addEventListener('submit', event => {
       confirmed = visit.status === 'confirmed'; navigate('review');
     } else if (event.target.id === 'review-form') { visit = confirmVisit(visit, confirmed); navigate('handoff'); }
     else if (event.target.id === 'handoff-form') {
-      if (!canShare(visit)) throw new Error('Select the patient language before preparing the card.');
+      visit = confirmPatientText(visit, patientConfirmed);
       navigate('complete');
     }
   } catch (problem) { error = problem.message; render(false); root.querySelector('.error')?.scrollIntoView({ block: 'center' }); }
@@ -188,7 +207,7 @@ function saved() {
 }
 
 function savedCard() {
-  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Approved copy</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(selectedCard.instruction)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p><div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
+  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Approved copy</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(selectedCard.instruction)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion === 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
 }
 
 function deleteDialog() {
@@ -207,13 +226,13 @@ async function refreshCards() {
 }
 
 async function saveCurrentCard() {
-  if (saving || !visit || !canShare(visit) || savedRevision === visit.revision) return;
+  if (saving || !visit || !canShare(visit) || savedRevision === visitStamp(visit)) return;
   const snapshot = { ...visit };
   saving = true; saveError = ''; render(false);
   try {
     const card = await saveApprovedCard(snapshot, cardRepository);
     cards = [card, ...cards.filter(existing => existing.id !== card.id)];
-    if (visit?.id === snapshot.id && visit.revision === snapshot.revision) savedRevision = snapshot.revision;
+    if (visit?.id === snapshot.id && visitStamp(visit) === visitStamp(snapshot)) savedRevision = visitStamp(snapshot);
   } catch { saveError = 'This card was not saved. Device storage may be unavailable or full. Keep the card open and try again.'; }
   finally { saving = false; render(false); }
 }
@@ -295,8 +314,15 @@ const speech = createSpeechController({
   onState: state => { speechState = state; updateVoiceControls(); },
   onText: text => setInstruction(text),
 });
-window.addEventListener('pagehide', () => speech.cancel());
-document.addEventListener('visibilitychange', () => { if (document.hidden) speech.cancel(); });
+const model = createModelController({ onState: state => { modelState = state; updateAI(); }, onDraft: draft => {
+  if (!visit || screen !== 'handoff' || visit.revision !== draft.revision || visit.language !== draft.language) return;
+  if (draft.type === 'rejected') { rejectedDraft = { text: draft.text, message: draft.message }; render(false); return; }
+  rejectedDraft = null;
+  visit = { ...visit, modelDraft: { text: draft.text, revision: draft.revision, language: draft.language, model: draft.model, modelRevision: draft.modelRevision } };
+  render(false);
+} });
+window.addEventListener('pagehide', () => { speech.cancel(); model.cancel(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { speech.cancel(); model.cancel(); } });
 window.addEventListener('online', updateStatus);
 window.addEventListener('offline', updateStatus);
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; updateStatus(); });

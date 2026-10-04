@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 const root = new URL('../', import.meta.url);
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || '127.0.0.1';
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
+const types = { '.mjs': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 const allowed = new Set(['/index.html', '/favicon.svg', '/manifest.webmanifest', '/sw.js', '/icons/icon-192.png', '/icons/icon-512.png',
-  '/src/app.js', '/src/visit.js', '/src/styles.css', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js']);
+  '/src/app.js', '/src/visit.js', '/src/styles.css', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js',
+  '/vendor/transformers.min.js', '/vendor/ort-wasm-simd-threaded.jsep.mjs', '/vendor/ort-wasm-simd-threaded.jsep.wasm']);
 http.createServer(async (request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname;
   const target = path === '/' ? '/index.html' : path;
@@ -19,7 +20,7 @@ http.createServer(async (request, response) => {
     const extension = target.slice(target.lastIndexOf('.'));
     response.writeHead(200, { 'Content-Type': types[extension], 'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
-      'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
     response.end(request.method === 'HEAD' ? undefined : data);
   } catch { response.writeHead(500); response.end('Unable to load application file'); }
 }).listen(port, host, () => console.log(`Visit Bridge is running at http://${host}:${port}`));
