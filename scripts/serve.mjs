@@ -7,7 +7,7 @@ const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || '127.0.0.1';
 const types = { '.mjs': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 const allowed = new Set(['/index.html', '/favicon.svg', '/manifest.webmanifest', '/sw.js', '/icons/icon-192.png', '/icons/icon-512.png',
-  '/src/app.js', '/src/visit.js', '/src/styles.css', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js',
+  '/src/app.js', '/src/visit.js', '/src/styles.css', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js', '/src/playback.js',
   '/vendor/transformers.min.js', '/vendor/ort-wasm-simd-threaded.jsep.mjs', '/vendor/ort-wasm-simd-threaded.jsep.wasm']);
 http.createServer(async (request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname;

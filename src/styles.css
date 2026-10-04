@@ -339,3 +339,13 @@ textarea:read-only{background:#f3f5ee}
 #patient-instruction { width: 100%; box-sizing: border-box; }
 @media (max-width: 600px) { #ai-controls .button { width: 100%; white-space: normal; } .preview-heading { align-items: flex-start; gap: 12px; } }
 .rejected-draft { background: #fff6ed; border-color: #dcc4aa; }
+
+.playback-panel { margin-top: 24px; border-top: 1px solid #dde5d5; padding-top: 22px; text-align: left; }
+.playback-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; color: #3d593d; }
+.playback-heading strong { font-size: 15px; font-weight: 600; }
+.playback-heading .icon { width: 20px; height: 20px; }
+.playback-panel > p { font-size: 13px; line-height: 1.7; color: #56694b; margin: 12px 0 16px; }
+.playback-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.playback-actions .button { gap: 10px; min-height: 48px; }
+.playback-panel > small { display: block; margin-top: 14px; font-size: 11px; line-height: 1.7; color: #6e7d63; }
+@media (max-width: 560px) { .playback-actions .button { width: auto; flex: 1; }.playback-heading .voice-badge { margin-left: 0; }.playback-panel { padding-top: 18px; } }

@@ -1,11 +1,13 @@
 import { createVisit, editInstruction, instructionError, selectLanguage, confirmVisit,
   patientInstruction, canShare, setPatientText, confirmPatientText, visitStamp, MAX_INSTRUCTION_LENGTH } from './visit.js';
 
-import { saveApprovedCard } from './cards.js';
+import { saveApprovedCard, cardFromVisit, isValidCard } from './cards.js';
 import { cardRepository } from './storage.js';
 import { initializeOffline } from './offline.js';
 import { createSpeechController } from './speech.js';
 import { createModelController } from './model.js';
+import { createPlaybackController } from './playback.js';
+let playbackState = { status: 'checking', message: 'Checking for a local English voice…', available: false, voiceName: '' };
 let modelState = { status: 'checking', message: 'Checking local AI availability…', installed: false };
 let patientConfirmed = false;
 let rejectedDraft = null;
@@ -38,6 +40,7 @@ const icons = {
   note: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6m-6 4h4"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/>',
   shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/>',
+  speaker: '<path d="m11 5-6 4H2v6h3l6 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
   mic: '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/>',
   home: '<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>',
   wifi: '<path d="M3 7a15 15 0 0 1 18 0M6 11a10 10 0 0 1 12 0m-9 4a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r="1"/>',
@@ -71,7 +74,7 @@ function home() {
       ['03','card','Make it easy to remember','Open a simple, readable care card on the device you already use.'],
     ].map(([number, name, title, copy]) => `<article class="how-card"><div class="how-top"><span class="icon-tile">${icon(name)}</span><span class="step-number">${number}</span></div><h3>${title}</h3><p>${copy}</p></article>`).join('')}</section>
     <section class="scope-strip">${icon('shield')}<div><strong>Communication support, with the worker in control.</strong><p>Visit Bridge helps communicate a plan you have already decided. It does not diagnose, prescribe, or choose treatment.</p></div><span class="scope-tag">FOUNDATION DEMO</span></section>
-    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('mic')}Spoken patient playback</span><span>${icon('globe')}Local language support</span><span>${icon('card')}Care-card export</span></div></section>`;
+    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('globe')}Validated patient translations</span><span>${icon('globe')}Local language support</span><span>${icon('card')}Care-card export</span></div></section>`;
 }
 
 function progress(active) {
@@ -108,21 +111,34 @@ function handoff() {
     `<span class="icon-tile">${icon('globe')}</span><h2>Your words. Your approval.</h2><p>Use the original, request an optional local draft, or edit the wording yourself. AI never chooses the patient’s next step.</p><p>Speak with the patient to check that the instruction makes sense. Any change requires your approval again.</p>`);
 }
 
+function playbackControls() {
+  const { status, available, message, voiceName } = playbackState;
+  const busy = ['starting','speaking','pausing','paused','resuming'].includes(status);
+  return `<div class="playback-heading">${icon('speaker')}<strong>Hear your next step</strong><span class="voice-badge">English · local voice</span></div><p role="status" aria-live="polite">${escape(message)}</p><div class="playback-actions">${busy ? `${status === 'speaking' && playback.canPause ? '<button type="button" class="button secondary" data-action="pause-playback">Pause</button>' : status === 'paused' && playback.canPause ? '<button type="button" class="button primary" data-action="resume-playback">Resume</button>' : ''}<button type="button" class="button secondary" data-action="stop-playback">Stop</button>` : `<button type="button" class="button primary" data-action="read-aloud" ${available ? '' : 'disabled'}>${icon('speaker')}${status === 'ended' ? 'Read again' : 'Read aloud'}</button>${['unavailable','error'].includes(status) ? '<button type="button" class="text-button" data-action="check-playback">Check voice again</button>' : ''}`}</div><small>${voiceName && available ? `Device voice: ${escape(voiceName)}. ` : ''}Reads the approved words on this card. Tap to start; use your device volume controls.</small>`;
+}
+function updatePlaybackControls() {
+  const controls = root.querySelector('#playback-controls'); if (!controls) return;
+  const action = controls.contains(document.activeElement) ? document.activeElement.dataset.action : null;
+  controls.innerHTML = playbackControls();
+  if (action) (controls.querySelector(`[data-action="${action}"]:not(:disabled)`) || controls.querySelector('[data-action="resume-playback"], [data-action="stop-playback"], [data-action="read-aloud"]:not(:disabled)'))?.focus();
+}
+
 function complete() {
   const text = patientInstruction(visit);
-  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Worker confirmed</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === visitStamp(visit) ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || savedRevision === visitStamp(visit) ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === visitStamp(visit) ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved text is kept in this browser and is not encrypted. Anyone using this browser can read it. Delete it from Saved cards when finished.</small></div><p class="completion-note">${savedRevision === visitStamp(visit) ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
+  return `<section class="completion"><span class="success-icon">${icon('check')}</span><span class="eyebrow">HANDOFF PREPARED</span><h1 tabindex="-1" id="page-heading">A next step to carry forward.</h1><p class="completion-intro">Show this card to the patient and explain the instruction together.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Worker confirmed</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read or listen</span></div><section id="playback-controls" class="playback-panel" aria-label="Read approved card aloud">${playbackControls()}</section></article><div class="save-panel" aria-live="polite">${saveError ? `<p class="error" role="alert">${escape(saveError)}</p>` : ''}${savedRevision === visitStamp(visit) ? `<p class="save-success">${icon('check')}Saved on this device. You can reopen this approved copy from Saved cards.</p>` : '<p>Save this approved card to reopen it here without a connection.</p>'}<button class="button secondary" data-action="save" ${saving || savedRevision === visitStamp(visit) ? 'disabled' : ''}>${saving ? 'Saving…' : savedRevision === visitStamp(visit) ? 'Saved on this device' : 'Save on this device'}</button><small>Demo information only. Saved text is kept in this browser and is not encrypted. Anyone using this browser can read it. Delete it from Saved cards when finished.</small></div><p class="completion-note">${savedRevision === visitStamp(visit) ? 'The saved copy remains after you finish this visit.' : 'Finishing without saving clears this visit.'} No card has been printed or sent.</p><div class="completion-actions">${button('Back to handoff','handoff',true)}${button('Finish visit','finish')}</div></section>`;
 }
 
 function render(focus = true) {
   root.innerHTML = `<div class="workspace" ${discardOpen || deleteId ? 'inert' : ''}>${sidebar()}<main class="main"><header class="topbar"><span>${['saved','savedCard'].includes(screen) ? 'Saved care cards' : screen === 'home' ? 'Overview' : 'Patient handoff'}</span><div class="topbar-status"><span class="prototype-badge">Prototype</span><span class="session-note" id="connection-status"></span></div></header><div class="page-content"><div id="offline-notice" class="offline-notice" role="status"></div>${({home, capture, review, handoff, complete, saved, savedCard})[screen]()}</div><footer class="main-footer"><span>Visit Bridge</span><span>World Bank · Small AI for development · Health</span></footer></main></div>${discardOpen ? `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="discard-heading"><h2 id="discard-heading">Discard this visit?</h2><p>Your current instruction will be removed from this session.</p><div class="form-actions">${button('Keep working','keep',true)}${button('Discard visit','discard')}</div></section></div>` : ''}${deleteId ? deleteDialog() : ''}`;
   updateStatus();
   updateVoiceControls();
+  updatePlaybackControls();
   if (deleteId) root.querySelector('[data-action="keep-card"]').focus();
   else if (discardOpen) root.querySelector('[data-action="keep"]').focus();
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
-function navigate(next) { speech.cancel(); model.cancel(); rejectedDraft = null; screen = next; error = ''; discardOpen = false; render(); window.scrollTo(0, 0); if (next === 'capture') speech.check(); if (next === 'handoff') model.check(); }
+function navigate(next) { playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; screen = next; error = ''; discardOpen = false; render(); window.scrollTo(0, 0); if (next === 'capture') speech.check(); if (next === 'handoff') model.check(); if (['complete','savedCard'].includes(next)) playback.check(); }
 function start() { speech.cancel(); speech.textEdited(); captureMode = 'type'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
@@ -145,6 +161,16 @@ root.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (!action) return;
   event.preventDefault();
+  if (action === 'read-aloud') {
+    try {
+      const card = screen === 'complete' && visit && canShare(visit) ? cardFromVisit(visit) : screen === 'savedCard' && isValidCard(selectedCard) ? selectedCard : null;
+      if (card) playback.play(card);
+    } catch { playback.stop(); }
+  }
+  if (action === 'pause-playback') playback.pause();
+  if (action === 'resume-playback') playback.resume();
+  if (action === 'stop-playback') playback.stop();
+  if (action === 'check-playback') playback.check();
   if (action === 'install-model') model.install();
   if (action === 'cancel-model') model.cancel();
   if (action === 'generate-model') { rejectedDraft = null; model.generate(visit); }
@@ -162,7 +188,7 @@ root.addEventListener('click', event => {
     if (selectedCard) navigate('savedCard');
   }
   if (action === 'save') saveCurrentCard();
-  if (action === 'request-delete') { deleteId = event.target.closest('[data-card-id]').dataset.cardId; render(false); }
+  if (action === 'request-delete') { playback.stop(); deleteId = event.target.closest('[data-card-id]').dataset.cardId; render(false); }
   if (action === 'keep-card' && !deleting) { deleteId = null; render(); }
   if (action === 'delete-card') deleteCard();
   if (action === 'install') promptInstall();
@@ -192,6 +218,7 @@ root.addEventListener('submit', event => {
   } catch (problem) { error = problem.message; render(false); root.querySelector('.error')?.scrollIntoView({ block: 'center' }); }
 });
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && playback.isBusy()) { playback.stop(); return; }
   if (event.key === 'Escape' && speech.isBusy()) { speech.cancel(); root.querySelector('#instruction')?.focus(); return; }
   if (!discardOpen && !deleteId) return;
   if (event.key === 'Escape' && deleteId && !deleting) { deleteId = null; render(); return; }
@@ -207,7 +234,7 @@ function saved() {
 }
 
 function savedCard() {
-  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Approved copy</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(selectedCard.instruction)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read</span></div></article><p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion === 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
+  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p><article class="final-card"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}Approved copy</span></div><span class="card-eyebrow">YOUR NEXT STEP</span><p class="final-instruction">${escape(selectedCard.instruction)}</p><div class="card-rule"></div><div class="final-card-foot"><span>From your health worker</span><span>English · Read or listen</span></div><section id="playback-controls" class="playback-panel" aria-label="Read approved card aloud">${playbackControls()}</section></article><p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion === 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
 }
 
 function deleteDialog() {
@@ -321,8 +348,9 @@ const model = createModelController({ onState: state => { modelState = state; up
   visit = { ...visit, modelDraft: { text: draft.text, revision: draft.revision, language: draft.language, model: draft.model, modelRevision: draft.modelRevision } };
   render(false);
 } });
-window.addEventListener('pagehide', () => { speech.cancel(); model.cancel(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { speech.cancel(); model.cancel(); } });
+const playback = createPlaybackController({ onState: state => { playbackState = state; updatePlaybackControls(); } });
+window.addEventListener('pagehide', () => { playback.stop(); speech.cancel(); model.cancel(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { playback.stop(); speech.cancel(); model.cancel(); } });
 window.addEventListener('online', updateStatus);
 window.addEventListener('offline', updateStatus);
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; updateStatus(); });
