@@ -1,0 +1,1313 @@
+{
+  "schemaVersion": 1,
+  "assessedCommit": "d189990",
+  "date": "2026-10-04",
+  "sources": {
+    "schematic": "docs/original-schematic.md",
+    "timeline": "docs/original-timeline.md",
+    "schematicTurn": "01a104be-37e1-7c51-ab65-53978ba50f88",
+    "timelineTurn": "01a104c5-9450-7710-a588-7636b175271f"
+  },
+  "policy": "The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.",
+  "verificationScope": "Code inspection and previously recorded checks. Evidence anchors prove traceability, not clinical validation or hardware operation. No coverage percentage or probability of winning is calculated.",
+  "items": [
+    {
+      "id": "context",
+      "title": "Name the worker, country/context and existing demo device",
+      "status": "partial",
+      "sourceSections": [
+        1,
+        2,
+        3,
+        4,
+        6,
+        18,
+        20
+      ],
+      "timelineParts": [
+        0,
+        1
+      ],
+      "evidence": [
+        {
+          "file": "README.md",
+          "anchor": "frontline"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "Health worker"
+        }
+      ],
+      "remaining": "Generic worker and fictional clinic are shown. Spanish is chosen; no country, specific authorized role or physical device is established.",
+      "acceptance": "Document actual role, setting, device/OS/browser and language; label fictional assumptions; obtain local workflow input.",
+      "phase": "context",
+      "dependencies": []
+    },
+    {
+      "id": "minimal-data",
+      "title": "Minimal data and source/output provenance",
+      "status": "implemented",
+      "sourceSections": [
+        7,
+        9,
+        12,
+        13
+      ],
+      "timelineParts": [
+        3,
+        4
+      ],
+      "evidence": [
+        {
+          "file": "src/visit.js",
+          "anchor": "createVisit"
+        },
+        {
+          "file": "src/cards.js",
+          "anchor": "cardFromVisit"
+        }
+      ],
+      "remaining": "Maintain the synthetic-data restriction and avoid adding unnecessary identifiers.",
+      "acceptance": "Original, derived wording, languages, versions and approval timestamps remain separate; no identity or diagnostic dataset required.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "typed",
+      "title": "Typed fallback and selected return-visit template",
+      "status": "implemented",
+      "sourceSections": [
+        7,
+        8,
+        9
+      ],
+      "timelineParts": [
+        2,
+        4
+      ],
+      "evidence": [
+        {
+          "file": "src/app.js",
+          "anchor": "function capture"
+        },
+        {
+          "file": "src/templates.js",
+          "anchor": "validTemplate"
+        }
+      ],
+      "remaining": "Expand structured administrative fields under structured-handoff; current explicit date/clinic template works.",
+      "acceptance": "A worker can type and complete the approved return-visit journey without AI; invalid calendar dates are rejected.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "speech",
+      "title": "Short on-device voice note and editable transcript",
+      "status": "needs-validation",
+      "sourceSections": [
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "timelineParts": [
+        1,
+        6
+      ],
+      "evidence": [
+        {
+          "file": "src/speech.js",
+          "anchor": "processLocally"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "function voiceControls"
+        }
+      ],
+      "remaining": "Local English API is implemented; preview device cannot run recognition. Test mic, noise, dialect and code-switching on chosen device; supported-language coverage remains constrained.",
+      "acceptance": "Live target-device recognition works offline or remains explicitly unavailable with typed fallback; no hidden cloud recognizer.",
+      "phase": "device-validation",
+      "dependencies": [
+        "context"
+      ]
+    },
+    {
+      "id": "source-separation",
+      "title": "Preserve source and show draft separately",
+      "status": "implemented",
+      "sourceSections": [
+        7,
+        8,
+        9,
+        13
+      ],
+      "timelineParts": [
+        3,
+        6,
+        7
+      ],
+      "evidence": [
+        {
+          "file": "src/app.js",
+          "anchor": "MODEL SUGGESTION"
+        },
+        {
+          "file": "src/visit.js",
+          "anchor": "setPatientText"
+        }
+      ],
+      "remaining": "Keep this behavior when adding structured extraction.",
+      "acceptance": "Original, model suggestion and worker edits remain distinguishable; model never automatically finalizes.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "structured-handoff",
+      "title": "Fixed fields for action/date/place/item/reported concern",
+      "status": "partial",
+      "sourceSections": [
+        7,
+        8,
+        9,
+        11
+      ],
+      "timelineParts": [
+        3,
+        4,
+        6
+      ],
+      "evidence": [
+        {
+          "file": "src/templates.js",
+          "anchor": "TEMPLATE_ID"
+        },
+        {
+          "file": "src/visit.js",
+          "anchor": "setReturnTemplate"
+        }
+      ],
+      "remaining": "Only date/place are structured in the return template. Add administrative action, explicit time if provided, optional item/task, optional clearly labeled patient-reported concern and unresolved fields. Do not require collecting optional information.",
+      "acceptance": "Source-backed fields are editable; worker choices resolve ambiguity; reported information is separate from the worker decision; no invented values.",
+      "phase": "structured",
+      "dependencies": [
+        "context"
+      ]
+    },
+    {
+      "id": "model-extraction",
+      "title": "AI organizes variable worker notes into fixed fields",
+      "status": "missing",
+      "sourceSections": [
+        7,
+        9,
+        11,
+        14
+      ],
+      "timelineParts": [
+        6
+      ],
+      "evidence": [],
+      "remaining": "Current AI paraphrases English only. Add constrained structured extraction, source-span provenance and schema validation with a deterministic/typed fallback.",
+      "acceptance": "Only information present in the source can enter a draft field; worker checks each field; unsupported output is refused.",
+      "phase": "structured",
+      "dependencies": [
+        "structured-handoff"
+      ]
+    },
+    {
+      "id": "uncertainty",
+      "title": "Missing, ambiguous and low-confidence details",
+      "status": "partial",
+      "sourceSections": [
+        7,
+        8,
+        9,
+        20
+      ],
+      "timelineParts": [
+        6,
+        7
+      ],
+      "evidence": [
+        {
+          "file": "src/wording.js",
+          "anchor": "draftError"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "MODEL OUTPUT REJECTED"
+        }
+      ],
+      "remaining": "Current screening checks output changes; it does not ask field-specific questions for missing dates, unclear places or uncertain source phrases. Add workflow-required fields, unknown states and actionable clarification.",
+      "acceptance": "Maybe Thursday remains uncertain; the model never chooses a date/place; worker can explicitly resolve or leave an optional field blank; required unresolved fields block finalization.",
+      "phase": "structured",
+      "dependencies": [
+        "structured-handoff"
+      ]
+    },
+    {
+      "id": "administrative-boundary",
+      "title": "Unsupported clinical content and source-note authority",
+      "status": "partial",
+      "sourceSections": [
+        2,
+        5,
+        9,
+        12,
+        13
+      ],
+      "timelineParts": [
+        0,
+        6,
+        7
+      ],
+      "evidence": [
+        {
+          "file": "src/wording.js",
+          "anchor": "draftError"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "does not diagnose"
+        }
+      ],
+      "remaining": "UI declares the boundary but screening is not a general clinical-content safeguard. Restrict model transformation to supported administrative handoffs and display an original-language/human-reviewed fallback for unsupported content.",
+      "acceptance": "Model cannot introduce treatment, diagnosis, dosage, urgency or referral decisions; unsupported content receives explicit review/fallback, with residual limitations documented.",
+      "phase": "structured",
+      "dependencies": [
+        "uncertainty"
+      ]
+    },
+    {
+      "id": "approval",
+      "title": "Separate worker review of original and exact patient text",
+      "status": "implemented",
+      "sourceSections": [
+        5,
+        7,
+        8,
+        9,
+        13,
+        20
+      ],
+      "timelineParts": [
+        4,
+        7
+      ],
+      "evidence": [
+        {
+          "file": "src/visit.js",
+          "anchor": "confirmVisit"
+        },
+        {
+          "file": "src/visit.js",
+          "anchor": "confirmPatientText"
+        },
+        {
+          "file": "src/visit.js",
+          "anchor": "canShare"
+        }
+      ],
+      "remaining": "Retain approvals and revocation rules for all new fields, exports and replay paths.",
+      "acceptance": "Editing source/final content invalidates corresponding approval; saved/AR/audio outputs require exact approved revisions.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "cancellation",
+      "title": "Correct, reject, cancel and interrupt without stale output",
+      "status": "implemented",
+      "sourceSections": [
+        7,
+        8,
+        9,
+        13
+      ],
+      "timelineParts": [
+        4,
+        7
+      ],
+      "evidence": [
+        {
+          "file": "src/model.js",
+          "anchor": "activeId"
+        },
+        {
+          "file": "src/speech.js",
+          "anchor": "cancel"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "Discard this visit"
+        }
+      ],
+      "remaining": "Keep cancellation consistent with future lock/understanding flows.",
+      "acceptance": "Workers can stop/edit/reject; stale mic/model/XR events cannot apply to another visit.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "language-pack",
+      "title": "One named, reviewed patient language",
+      "status": "partial",
+      "sourceSections": [
+        1,
+        7,
+        9,
+        10,
+        11,
+        18,
+        20
+      ],
+      "timelineParts": [
+        0,
+        5
+      ],
+      "evidence": [
+        {
+          "file": "packs/es-return-visit-v1.json",
+          "anchor": "demonstration-unvalidated"
+        },
+        {
+          "file": "src/language-packs.js",
+          "anchor": "PACK_SHA256"
+        }
+      ],
+      "remaining": "Spanish return-visit demo works; no qualified/community review is supplied. Obtain review and actual-context justification; preserve unvalidated status until evidence exists.",
+      "acceptance": "A fluent reviewer verifies action/date/place; reviewer scope and provenance are recorded with consent; content is understandable in the named local setting.",
+      "phase": "language-validation",
+      "dependencies": [
+        "context"
+      ]
+    },
+    {
+      "id": "language-fallback",
+      "title": "Explicit unsupported language/phrase fallback",
+      "status": "implemented",
+      "sourceSections": [
+        9,
+        10,
+        11
+      ],
+      "timelineParts": [
+        5,
+        7
+      ],
+      "evidence": [
+        {
+          "file": "src/visit.js",
+          "anchor": "Spanish supports the return-visit template only"
+        },
+        {
+          "file": "src/playback.js",
+          "anchor": "localService"
+        }
+      ],
+      "remaining": "Extend cautiously to future templates only after reviewed language content exists.",
+      "acceptance": "No arbitrary Spanish translation or English/remote-voice substitution; original/typed text remains available.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "language-quality",
+      "title": "Dates, numbers, dialect and speech-resource evaluation",
+      "status": "missing",
+      "sourceSections": [
+        10,
+        12,
+        15,
+        18
+      ],
+      "timelineParts": [
+        1,
+        5,
+        9
+      ],
+      "evidence": [],
+      "remaining": "Evaluate exact phrases, date pronunciation, dialect, noisy speech and code-switching with consented/fluent reviewers; use licensed data only if actually used.",
+      "acceptance": "Record sample, model/content version, language/dialect, device, errors and limits; do not cite a resource as used merely because the brief lists it.",
+      "phase": "language-validation",
+      "dependencies": [
+        "language-pack",
+        "speech"
+      ]
+    },
+    {
+      "id": "patient-layout",
+      "title": "One action per line, large text and meaningful pictograms",
+      "status": "partial",
+      "sourceSections": [
+        7,
+        8,
+        10,
+        15
+      ],
+      "timelineParts": [
+        4,
+        5
+      ],
+      "evidence": [
+        {
+          "file": "src/app.js",
+          "anchor": "function patientCard"
+        },
+        {
+          "file": "src/ar-renderer.js",
+          "anchor": "Pictograms"
+        }
+      ],
+      "remaining": "Regular card uses one paragraph and has no action-specific pictograms. Add a structured, accessible action layout and context-matched simple symbols.",
+      "acceptance": "All approved actions remain readable and in order; icons supplement text/audio; no color-only meaning or inferred clinical imagery.",
+      "phase": "handoff",
+      "dependencies": [
+        "structured-handoff"
+      ]
+    },
+    {
+      "id": "audio",
+      "title": "Approved local-language playback and replay",
+      "status": "needs-validation",
+      "sourceSections": [
+        7,
+        8,
+        9,
+        10,
+        15
+      ],
+      "timelineParts": [
+        4,
+        5
+      ],
+      "evidence": [
+        {
+          "file": "src/playback.js",
+          "anchor": "createPlaybackController"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "function playbackControls"
+        }
+      ],
+      "remaining": "English/Spanish browser speech events passed; actual speaker output and target-phone pronunciation still need review.",
+      "acceptance": "Exact approved text is spoken only by a matching local voice; replay/stop work offline on the intended device or text fallback is clear.",
+      "phase": "device-validation",
+      "dependencies": [
+        "context",
+        "language-pack"
+      ]
+    },
+    {
+      "id": "understanding",
+      "title": "Worker checks and records patient understanding",
+      "status": "missing",
+      "sourceSections": [
+        1,
+        5,
+        7,
+        8,
+        11,
+        15,
+        20
+      ],
+      "timelineParts": [
+        4,
+        9
+      ],
+      "evidence": [],
+      "remaining": "Add a teach-back prompt and worker-marked understood/clarified/needs-follow-up result, linked to the approved wording revision; clarify/replay without automated comprehension scoring.",
+      "acceptance": "Worker can explain, ask patient to repeat the next step, mark result, reclarify and save the result; changing approved content requires a fresh understanding check.",
+      "phase": "handoff",
+      "dependencies": [
+        "structured-handoff",
+        "approval"
+      ]
+    },
+    {
+      "id": "saved",
+      "title": "Save/reopen/delete exact approved copies locally",
+      "status": "implemented",
+      "sourceSections": [
+        7,
+        8,
+        11,
+        13
+      ],
+      "timelineParts": [
+        4,
+        8
+      ],
+      "evidence": [
+        {
+          "file": "src/storage.js",
+          "anchor": "cardRepository"
+        },
+        {
+          "file": "src/cards.js",
+          "anchor": "isValidCard"
+        }
+      ],
+      "remaining": "Current records are plaintext. Encrypt under encrypted-storage; add understanding/structured fields with migration compatibility.",
+      "acceptance": "Save succeeds after transaction commit; reopening retains approval/provenance; cancellation and delete failures preserve correct state.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "encryption",
+      "title": "Encrypted local encounter storage",
+      "status": "missing",
+      "sourceSections": [
+        11,
+        13,
+        20
+      ],
+      "timelineParts": [
+        3,
+        8
+      ],
+      "evidence": [
+        {
+          "file": "src/storage.js",
+          "anchor": "indexedDB.open"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "is not encrypted"
+        }
+      ],
+      "remaining": "Implement an encrypted vault, documented key management and safe migration of legacy plaintext synthetic cards. Do not silently destroy or falsely relabel old records.",
+      "acceptance": "Stored payload is authenticated ciphertext; wrong key fails safely; original records are migrated only with a documented recovery/commit path; do not claim full device compromise protection.",
+      "phase": "privacy",
+      "dependencies": [
+        "structured-handoff",
+        "understanding"
+      ]
+    },
+    {
+      "id": "lock",
+      "title": "App lock, session timeout and explicit privacy control",
+      "status": "missing",
+      "sourceSections": [
+        8,
+        13
+      ],
+      "timelineParts": [
+        3,
+        8
+      ],
+      "evidence": [],
+      "remaining": "Add a visible lock, unlock flow, inactivity timeout, memory/session clearing and stop active mic/audio/AR/inference when locking.",
+      "acceptance": "A shared-device user sees no saved instructions before unlock; timeout ends active sessions; key lifetime/reset behavior is documented.",
+      "phase": "privacy",
+      "dependencies": [
+        "encryption"
+      ]
+    },
+    {
+      "id": "consent",
+      "title": "Encounter recording/save notices and consent workflow",
+      "status": "partial",
+      "sourceSections": [
+        6,
+        7,
+        13
+      ],
+      "timelineParts": [
+        3,
+        4
+      ],
+      "evidence": [
+        {
+          "file": "src/app.js",
+          "anchor": "fictional"
+        },
+        {
+          "file": "src/speech.js",
+          "anchor": "start"
+        }
+      ],
+      "remaining": "There are explicit start/save actions and browser access prompts, but no encounter-level patient recording/save consent flow. Define and implement the demonstration consent step appropriate to the chosen context.",
+      "acceptance": "Worker records consent/decline as required by the workflow; denial preserves typed/non-recorded alternatives; notices describe actual retention and sharing.",
+      "phase": "privacy",
+      "dependencies": [
+        "context"
+      ]
+    },
+    {
+      "id": "raw-audio",
+      "title": "No ambient recording or raw audio retention",
+      "status": "implemented",
+      "sourceSections": [
+        6,
+        7,
+        13,
+        15
+      ],
+      "timelineParts": [
+        3,
+        6
+      ],
+      "evidence": [
+        {
+          "file": "src/speech.js",
+          "anchor": "processLocally"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "No raw audio is saved"
+        }
+      ],
+      "remaining": "Continue to store no raw audio; no delete-after-review mechanism is needed when raw audio is never retained by the app.",
+      "acceptance": "Mic requires active start; navigation/cancellation/lock stops it; no application audio blobs are persisted.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "device-loss",
+      "title": "Credible shared/lost-device behavior",
+      "status": "partial",
+      "sourceSections": [
+        13,
+        17
+      ],
+      "timelineParts": [
+        3,
+        8
+      ],
+      "evidence": [
+        {
+          "file": "README.md",
+          "anchor": "not encrypted"
+        }
+      ],
+      "remaining": "Current README honestly describes public browser access but does not meet the protected-storage target. Document lock/key recovery/deletion limits and production device-management needs.",
+      "acceptance": "Describe exactly who can decrypt and read, what a lost/shared device exposes, and recovery/erasure limitations; no claim of remote revocation without a real service.",
+      "phase": "privacy",
+      "dependencies": [
+        "encryption",
+        "lock"
+      ]
+    },
+    {
+      "id": "no-cloud",
+      "title": "Local inference and no automatic patient upload",
+      "status": "needs-validation",
+      "sourceSections": [
+        9,
+        11,
+        12,
+        13,
+        20
+      ],
+      "timelineParts": [
+        6,
+        8
+      ],
+      "evidence": [
+        {
+          "file": "src/model-worker.js",
+          "anchor": "local_files_only"
+        },
+        {
+          "file": "src/model.js",
+          "anchor": "worker.postMessage"
+        }
+      ],
+      "remaining": "Architecture confines content to local workers; target-device network inspection of full voice/inference/translation path is still outstanding.",
+      "acceptance": "Record network evidence showing public pack downloads only during installation, and no patient-content transmission during the tested core flow.",
+      "phase": "device-validation",
+      "dependencies": [
+        "context"
+      ]
+    },
+    {
+      "id": "shell",
+      "title": "Offline shell/PWA and visible readiness",
+      "status": "implemented",
+      "sourceSections": [
+        7,
+        8,
+        11
+      ],
+      "timelineParts": [
+        2,
+        8
+      ],
+      "evidence": [
+        {
+          "file": "sw.js",
+          "anchor": "ASSETS"
+        },
+        {
+          "file": "src/offline.js",
+          "anchor": "CHECK_SHELL"
+        },
+        {
+          "file": "manifest.webmanifest",
+          "anchor": "start_url"
+        }
+      ],
+      "remaining": "Check installation on the chosen phone and after hosting-origin changes.",
+      "acceptance": "After cache/install, shell and saved cards reopen without the application server; readiness distinguishes shell from model/voice packs.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "full-offline",
+      "title": "Complete essential workflow in airplane mode",
+      "status": "needs-validation",
+      "sourceSections": [
+        5,
+        11,
+        15,
+        17,
+        20
+      ],
+      "timelineParts": [
+        1,
+        8
+      ],
+      "evidence": [
+        {
+          "file": "README.md",
+          "anchor": "server-unavailable"
+        },
+        {
+          "file": "sw.js",
+          "anchor": "CACHE_NAME"
+        }
+      ],
+      "remaining": "Server-stopped checks are not full airplane-mode proof; new missing core features must be included in final verification.",
+      "acceptance": "On the declared device: launch, create, AI organize where promised, approve, explain, mark understanding, encrypted save/reopen/edit/delete, replay and AR as promised without connectivity.",
+      "phase": "device-validation",
+      "dependencies": [
+        "understanding",
+        "encryption",
+        "language-pack",
+        "model-extraction"
+      ]
+    },
+    {
+      "id": "model-provenance",
+      "title": "Named model/runtime versions, size and licenses",
+      "status": "implemented",
+      "sourceSections": [
+        2,
+        10,
+        12,
+        17
+      ],
+      "timelineParts": [
+        1,
+        6,
+        11
+      ],
+      "evidence": [
+        {
+          "file": "src/model-config.js",
+          "anchor": "MODEL_REVISION"
+        },
+        {
+          "file": "vendor/PROVENANCE.json",
+          "anchor": "3.8.1"
+        },
+        {
+          "file": "README.md",
+          "anchor": "207 MB"
+        }
+      ],
+      "remaining": "Maintain actual byte counts and clearly distinguish download size from runtime memory.",
+      "acceptance": "Pinned model/runtime files and licenses documented; no credential or patient-data commit.",
+      "phase": "maintain",
+      "dependencies": []
+    },
+    {
+      "id": "sideload",
+      "title": "Portable model installation over constrained connections",
+      "status": "missing",
+      "sourceSections": [
+        2,
+        11,
+        17
+      ],
+      "timelineParts": [
+        1,
+        6
+      ],
+      "evidence": [],
+      "remaining": "Network installer exists; no import/export of a verified portable model pack or weak-connection/side-loading evidence. Add a local verified pack transfer route and report real sizes.",
+      "acceptance": "Previously downloaded pack can be installed on a supported device without re-fetching all assets; invalid/incomplete files are refused; no smaller-device feasibility claim without measurement.",
+      "phase": "portable",
+      "dependencies": [
+        "context",
+        "model-provenance"
+      ]
+    },
+    {
+      "id": "performance",
+      "title": "Device feasibility, latency and memory measurements",
+      "status": "missing",
+      "sourceSections": [
+        4,
+        10,
+        11,
+        15,
+        17
+      ],
+      "timelineParts": [
+        1,
+        6,
+        9
+      ],
+      "evidence": [],
+      "remaining": "Desktop inference succeeded but target-phone memory/latency, low-end limits and weak-connection installation have no measurements.",
+      "acceptance": "Record device/browser, cold/warm latency, transfer size, memory measurement method and failure rates; no invented benchmark.",
+      "phase": "device-validation",
+      "dependencies": [
+        "context",
+        "model-extraction",
+        "sideload"
+      ]
+    },
+    {
+      "id": "paper",
+      "title": "Printable/offline portable patient summary",
+      "status": "missing",
+      "sourceSections": [
+        1,
+        4,
+        7,
+        14,
+        16,
+        20
+      ],
+      "timelineParts": [
+        4,
+        10,
+        11
+      ],
+      "evidence": [],
+      "remaining": "Add approved-only print/download output usable without the patient owning a phone, with date/place, language and review notice retained.",
+      "acceptance": "Paper/portable output is readable, matches approved text, preserves Spanish status and works without AR or network; printing hardware availability is stated.",
+      "phase": "portable",
+      "dependencies": [
+        "patient-layout",
+        "approval"
+      ]
+    },
+    {
+      "id": "ar-spatial",
+      "title": "Place/resize/rotate/reposition approved card in spatial AR",
+      "status": "needs-validation",
+      "sourceSections": [
+        16
+      ],
+      "timelineParts": [
+        10
+      ],
+      "evidence": [
+        {
+          "file": "src/ar.js",
+          "anchor": "requestHitTestSource"
+        },
+        {
+          "file": "src/ar-renderer.js",
+          "anchor": "placementMatrix"
+        }
+      ],
+      "remaining": "Implemented supplementary surface AR; current preview has no immersive support, so GPU/camera/physical placement remain unverified.",
+      "acceptance": "Actual phone finds a surface and renders approved content; denial/tracking loss/exit safely return to the regular card.",
+      "phase": "ar-validation",
+      "dependencies": [
+        "context"
+      ]
+    },
+    {
+      "id": "ar-marker",
+      "title": "Original visual-marker scan-to-replay experience",
+      "status": "missing",
+      "sourceSections": [
+        16,
+        20
+      ],
+      "timelineParts": [
+        10
+      ],
+      "evidence": [
+        {
+          "file": "src/ar.js",
+          "anchor": "requestHitTestSource"
+        }
+      ],
+      "remaining": "Current AR detects surfaces, not card markers. Add a printed/on-screen marker, offline recognition and approved-card lookup; preserve spatial AR as an additional mode.",
+      "acceptance": "Scanning the worker's card on a compatible device identifies the correct approved snapshot offline; unknown/stale markers fail clearly without retrieving another patient's card.",
+      "phase": "ar-replay",
+      "dependencies": [
+        "paper",
+        "approval",
+        "context"
+      ]
+    },
+    {
+      "id": "ar-replay",
+      "title": "Approved visual sequence and local-language audio in AR",
+      "status": "missing",
+      "sourceSections": [
+        16
+      ],
+      "timelineParts": [
+        10
+      ],
+      "evidence": [
+        {
+          "file": "src/app.js",
+          "anchor": "playback.stop(); speech.cancel(); model.cancel(); arSnapshot"
+        }
+      ],
+      "remaining": "AR shows one text plane and stops regular audio on entry. Add an administrative action sequence and explicit approved-audio replay in the AR experience.",
+      "acceptance": "Each visual step represents an approved action; exact matching local-language audio can replay/stop inside AR; unsupported voice retains text; no generated clinical imagery.",
+      "phase": "ar-replay",
+      "dependencies": [
+        "ar-marker",
+        "patient-layout",
+        "audio"
+      ]
+    },
+    {
+      "id": "ar-evidence",
+      "title": "AR offline and plain-card comparison evidence",
+      "status": "missing",
+      "sourceSections": [
+        15,
+        16
+      ],
+      "timelineParts": [
+        9,
+        10
+      ],
+      "evidence": [],
+      "remaining": "Fallback loads offline but physical AR and comprehension benefits have not been tested.",
+      "acceptance": "Record supported-device offline scan/replay result and compare with plain card; distinguish engagement from measured understanding.",
+      "phase": "ar-validation",
+      "dependencies": [
+        "ar-marker",
+        "ar-replay",
+        "ar-spatial"
+      ]
+    },
+    {
+      "id": "evaluation",
+      "title": "10–20 synthetic scenarios and fidelity/correction evidence",
+      "status": "missing",
+      "sourceSections": [
+        12,
+        15,
+        17,
+        19
+      ],
+      "timelineParts": [
+        6,
+        7,
+        9
+      ],
+      "evidence": [],
+      "remaining": "Unit/controller checks exist, but no aggregate scripted scenario evaluation or field-extraction result set.",
+      "acceptance": "Include absent/ambiguous dates, negatives, noisy/misheard input, code-switching, unsupported language/content; record introduced facts, corrections/rejections and sample/method.",
+      "phase": "evidence",
+      "dependencies": [
+        "model-extraction",
+        "uncertainty"
+      ]
+    },
+    {
+      "id": "baseline",
+      "title": "Measured AI vs plain-form/paper baseline",
+      "status": "missing",
+      "sourceSections": [
+        2,
+        14,
+        15,
+        17,
+        19
+      ],
+      "timelineParts": [
+        4,
+        6,
+        9
+      ],
+      "evidence": [],
+      "remaining": "Working typed baseline exists but no time/effort comparison substantiates AI value.",
+      "acceptance": "Same synthetic tasks are compared fairly; report time, correction burden and successful task completion without claiming unmeasured health outcomes.",
+      "phase": "evidence",
+      "dependencies": [
+        "evaluation",
+        "understanding"
+      ]
+    },
+    {
+      "id": "comprehension",
+      "title": "Consented/fluent/user understanding evaluation",
+      "status": "missing",
+      "sourceSections": [
+        3,
+        10,
+        15,
+        17,
+        18
+      ],
+      "timelineParts": [
+        5,
+        9
+      ],
+      "evidence": [],
+      "remaining": "No participant comprehension or local-worker workflow review results.",
+      "acceptance": "Consented small test uses fictional scenarios; record sample/context, ability to repeat next step, limits and comparison; no participant identities/public raw recordings.",
+      "phase": "evidence",
+      "dependencies": [
+        "understanding",
+        "language-quality",
+        "context"
+      ]
+    },
+    {
+      "id": "accessibility",
+      "title": "Phone/keyboard/audio inclusivity and screen-reader validation",
+      "status": "partial",
+      "sourceSections": [
+        4,
+        8,
+        10,
+        15,
+        17,
+        18
+      ],
+      "timelineParts": [
+        2,
+        5,
+        9
+      ],
+      "evidence": [
+        {
+          "file": "src/styles.css",
+          "anchor": "@media"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "aria-live"
+        }
+      ],
+      "remaining": "Responsive layout and basic AR overflow checks exist; verify target-phone controls, screen reader, focus, pictogram comprehension and multi-action layout.",
+      "acceptance": "Key flow completes with large controls and keyboard/screen-reader alternatives; color is not the only cue; patient need not own a smartphone.",
+      "phase": "device-validation",
+      "dependencies": [
+        "patient-layout",
+        "understanding"
+      ]
+    },
+    {
+      "id": "grounding",
+      "title": "Context sources separated from model/evaluation data",
+      "status": "partial",
+      "sourceSections": [
+        2,
+        3,
+        4,
+        5,
+        10,
+        12,
+        17
+      ],
+      "timelineParts": [
+        0,
+        1,
+        9,
+        11
+      ],
+      "evidence": [
+        {
+          "file": "docs/original-schematic.md",
+          "anchor": "Data and evidence plan"
+        },
+        {
+          "file": "vendor/PROVENANCE.json",
+          "anchor": "LICENSE.txt"
+        }
+      ],
+      "remaining": "Research has been recovered, but no final country/year/source evidence register or clear list of datasets actually used exists. Verify cited claims before submission.",
+      "acceptance": "Each claim has source/year/geography/limits; distinguish supporting context from tool/evaluation inputs; never imply training on listed but unused resources.",
+      "phase": "evidence",
+      "dependencies": [
+        "context"
+      ]
+    },
+    {
+      "id": "replication",
+      "title": "Localization/adoption/replication and institutional-fit notes",
+      "status": "partial",
+      "sourceSections": [
+        6,
+        13,
+        14,
+        17,
+        18
+      ],
+      "timelineParts": [
+        0,
+        3,
+        11
+      ],
+      "evidence": [
+        {
+          "file": "README.md",
+          "anchor": "Run locally"
+        },
+        {
+          "file": "docs/original-schematic.md",
+          "anchor": "localizing AI development"
+        }
+      ],
+      "remaining": "Add deployment adaptation requirements, local review responsibilities, existing-workflow fit and no-duplicate-paperwork evaluation.",
+      "acceptance": "Another team can identify required language content, device, role, data policy, review process, model assets and limitations.",
+      "phase": "release",
+      "dependencies": [
+        "grounding",
+        "device-loss"
+      ]
+    },
+    {
+      "id": "sync",
+      "title": "Optional authorized later health-system synchronization",
+      "status": "future",
+      "sourceSections": [
+        7,
+        11,
+        13,
+        20
+      ],
+      "timelineParts": [
+        3,
+        8
+      ],
+      "evidence": [],
+      "remaining": "Preserved as an original future capability. There is no authorized destination; do not build/send records to an invented system. Define interface and ownership boundary before implementation.",
+      "acceptance": "No automatic upload; actual destination/security/consent/institutional authority must exist before synchronization is enabled.",
+      "phase": "future",
+      "dependencies": [
+        "device-loss",
+        "consent"
+      ]
+    },
+    {
+      "id": "hosting",
+      "title": "Live HTTPS URL and deployable judge-facing page",
+      "status": "missing",
+      "sourceSections": [
+        19,
+        21
+      ],
+      "timelineParts": [
+        11
+      ],
+      "evidence": [],
+      "remaining": "Only localhost is running. Prepare hosting configuration and deploy with correct origin/paths, worker/WASM/JSON MIME, headers and first-install instructions.",
+      "acceptance": "Public URL opens app; packs/install/offline readiness work at that origin; browser/device limitations and repo link are easy to find.",
+      "phase": "release",
+      "dependencies": [
+        "paper"
+      ]
+    },
+    {
+      "id": "documentation",
+      "title": "Charter/privacy/feasibility/evaluation and source package",
+      "status": "partial",
+      "sourceSections": [
+        12,
+        13,
+        17,
+        18,
+        19,
+        21
+      ],
+      "timelineParts": [
+        0,
+        1,
+        3,
+        6,
+        8,
+        9,
+        11
+      ],
+      "evidence": [
+        {
+          "file": "README.md",
+          "anchor": "Seventh checkpoint"
+        },
+        {
+          "file": "docs/original-timeline.md",
+          "anchor": "docs/privacy.md"
+        }
+      ],
+      "remaining": "README records build history, but planned charter/privacy/feasibility/evidence documents are incomplete or absent. Consolidate honest current specs without stale promises.",
+      "acceptance": "Judges can find scope, device/language, model/license/size, retention/key policy, actual verification, gaps, replication and sources.",
+      "phase": "release",
+      "dependencies": [
+        "evaluation",
+        "device-loss",
+        "grounding"
+      ]
+    },
+    {
+      "id": "submission",
+      "title": "Required video, team photo, both submissions and release tag",
+      "status": "missing",
+      "sourceSections": [
+        17,
+        19,
+        21
+      ],
+      "timelineParts": [
+        12
+      ],
+      "evidence": [],
+      "remaining": "Prepare the required challenge video/story and form assets; confirm current platform deadline/constraints directly before submission. Historic screenshot timing is not a current deadline check.",
+      "acceptance": "Working repo/live links; required video and team photo; correct challenge; both platform and Google Form completed by user authorization; tag exact submitted release; no invented results.",
+      "phase": "submission",
+      "dependencies": [
+        "hosting",
+        "documentation",
+        "baseline"
+      ]
+    },
+    {
+      "id": "home-readiness",
+      "title": "Home/capture pack availability and explicit input language",
+      "status": "partial",
+      "sourceSections": [
+        7,
+        8,
+        10,
+        11
+      ],
+      "timelineParts": [
+        2,
+        5
+      ],
+      "evidence": [
+        {
+          "file": "src/app.js",
+          "anchor": "function home"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "function packControls"
+        }
+      ],
+      "remaining": "Pack availability is shown in Handoff, not on Home; add a home readiness summary and explicit worker input language in Capture, preserving independent shell/model/speech/language statuses.",
+      "acceptance": "Before starting, the worker can identify usable local language and input modes; shell readiness never implies every pack or voice is available.",
+      "phase": "handoff",
+      "dependencies": [
+        "context"
+      ]
+    }
+  ]
+}

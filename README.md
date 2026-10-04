@@ -165,3 +165,16 @@ Verification: all 39 tests and syntax checks pass. Synthetic XR tests cover appr
 API references: [WebXR session requests](https://developer.mozilla.org/en-US/docs/Web/API/XRSystem/requestSession), [hit-test sources](https://developer.mozilla.org/en-US/docs/Web/API/XRSession/requestHitTestSource), and [Google's WebXR AR setup](https://developers.google.com/ar/develop/webxr/hello-webxr).
 
 Seventh checkpoint: `Spatial AR display for approved care cards`.
+
+
+## Eighth checkpoint: original-schematic coverage audit
+
+The complete accepted schematic and original 13-part timeline have been recovered from this chat and archived in `docs/original-schematic.md` and `docs/original-timeline.md`. The user's subsequent instructions retain every feature, including AR; historic stretch/cut wording does not authorize dropping features. The seven software checkpoints differ from those original timeline parts.
+
+`docs/feature-audit.json` maps 45 requirement groups to original schematic sections and timeline parts, implementation evidence, current status, remaining work, acceptance criteria and dependencies. `docs/remaining-build-plan.md` orders the remaining work. `docs/feature-audit.md` is the generated human-readable report. Status counts are not a completion percentage: requirements have different sizes and external validation needs.
+
+Run `npm run audit:features` to check unique IDs, evidence-file/anchor existence, coverage links for all 21 schematic sections and 13 timeline parts, and dependency validity/cycles. Run `npm run audit:report` to regenerate the tracked report and local user-facing copies under `outputs/`. With the bundled runtime, use its full Node path with `scripts/report-audit.mjs --write`. This is source traceability checking, not app execution, clinical validation or proof of hardware behavior.
+
+The audit identifies missing understanding checks, full structured extraction/uncertainty, encrypted storage/app lock, portable paper/model packs, marker-based AR replay, measured baseline/user evidence, hosting and final submission assets. Current surface-placement AR is retained as an additional mode and does not satisfy the original marker-scan/audio sequence by itself. Spanish remains unvalidated; qualification/community review cannot be manufactured by code. Optional authorized health-system synchronization is preserved as a future capability requiring a real authorized destination.
+
+Next coding checkpoint: structured administrative handoff fields, constrained source-backed extraction and explicit uncertainty, while preserving original/final approval controls. No patient-facing feature was added by the audit checkpoint. Review statuses before claiming the full schematic is complete.
