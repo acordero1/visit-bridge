@@ -1,10 +1,10 @@
 import { isValidCard } from './cards.js';
 
 const BUSY = new Set(['starting', 'speaking', 'pausing', 'paused', 'resuming']);
-const english = voice => /^en(?:[-_]|$)/i.test(voice.lang || '');
-const localEnglish = voices => voices.filter(voice => voice.localService === true && english(voice));
+const matchesLanguage = (voice, code) => String(voice.lang || '').replace('_','-').toLowerCase().split('-')[0] === code;
+const localVoices = (voices, code) => voices.filter(voice => voice.localService === true && matchesLanguage(voice, code));
 
-// Only an approved snapshot and an explicitly local English voice can reach speak().
+// Only an approved snapshot and an explicitly local voice matching the card language can reach speak().
 // Availability discovery never speaks, requests a microphone, or fetches a voice.
 export function createPlaybackController({ environment = globalThis, onState,
   schedule = setTimeout, unschedule = clearTimeout }) {
@@ -12,7 +12,8 @@ export function createPlaybackController({ environment = globalThis, onState,
   const Utterance = environment.SpeechSynthesisUtterance;
   const supported = Boolean(engine && Utterance && typeof engine.getVoices === 'function'
     && typeof engine.speak === 'function' && typeof engine.cancel === 'function');
-  let state = { status: 'checking', message: 'Checking for a local English voice…', available: false, voiceName: '' };
+  let state = { status: 'checking', message: 'Checking for a local voice…', available: false, voiceName: '' };
+  let requestedLanguage = 'en';
   let active = null;
   let timer = null;
   let discoveryTimer = null;
@@ -21,8 +22,8 @@ export function createPlaybackController({ environment = globalThis, onState,
   };
   const clearTimer = () => { if (timer !== null) unschedule(timer); timer = null; };
   const clearDiscovery = () => { if (discoveryTimer !== null) unschedule(discoveryTimer); discoveryTimer = null; };
-  const voices = () => supported ? localEnglish(Array.from(engine.getVoices())) : [];
-  const choose = list => list.find(voice => voice.default) || list.find(voice => /^en-US$/i.test(voice.lang)) || list[0];
+  const voices = () => supported ? localVoices(Array.from(engine.getVoices()), requestedLanguage) : [];
+  const choose = list => list.find(voice => voice.default) || list.find(voice => voice.lang.toLowerCase() === (requestedLanguage === 'es' ? 'es-es' : 'en-us')) || list[0];
   function release() {
     const hadSession = Boolean(active);
     active = null; clearTimer();
@@ -31,16 +32,18 @@ export function createPlaybackController({ environment = globalThis, onState,
     }
   }
   function fail(message) { release(); emit('error', message); }
-  function check() {
+  function check(code = requestedLanguage) {
     if (active) return;
+    requestedLanguage = code;
     clearDiscovery();
+    if (!['en','es'].includes(code)) { emit('unavailable', 'This card language has no playback support.', { available: false, voiceName: '' }); return; }
     if (!supported) { emit('unavailable', 'Read aloud is not available in this browser. You can read the card together.', { available: false, voiceName: '' }); return; }
     try {
       const voice = choose(voices());
       if (voice) emit('ready', 'Ready to read the approved words aloud.', { available: true, voiceName: voice.name });
       else {
-        emit('checking', 'Checking for a local English voice…', { available: false, voiceName: '' });
-        discoveryTimer = schedule(() => { discoveryTimer = null; emit('unavailable', 'No local English voice is available. You can read the card together or check again after installing a device voice.', { available: false, voiceName: '' }); }, 3000);
+        emit('checking', `Checking for a local ${requestedLanguage === 'es' ? 'Spanish' : 'English'} voice…`, { available: false, voiceName: '' });
+        discoveryTimer = schedule(() => { discoveryTimer = null; emit('unavailable', `No local ${requestedLanguage === 'es' ? 'Spanish' : 'English'} voice is available. You can read the card together or check again after installing a device voice.`, { available: false, voiceName: '' }); }, 3000);
       }
     } catch { emit('unavailable', 'Device voices could not be checked. You can read the card together.', { available: false, voiceName: '' }); }
   }
@@ -49,10 +52,11 @@ export function createPlaybackController({ environment = globalThis, onState,
   }
   function play(card) {
     release(); clearDiscovery();
-    if (!isValidCard(card) || card.language !== 'en') { emit('error', 'Open an approved English care card before reading aloud.'); return; }
+    if (!isValidCard(card) || !['en','es'].includes(card.language)) { emit('error', 'Open an approved care card before reading aloud.'); return; }
+    requestedLanguage = card.language;
     let voice;
     try { voice = choose(voices()); } catch { /* Refuse unavailable voices. */ }
-    if (!voice) { emit('unavailable', 'No local English voice is available. The written card is still here.', { available: false, voiceName: '' }); return; }
+    if (!voice) { emit('unavailable', `No local ${requestedLanguage === 'es' ? 'Spanish' : 'English'} voice is available. The written card is still here.`, { available: false, voiceName: '' }); return; }
     try {
       const utterance = new Utterance(card.instruction);
       const session = { utterance, voice };
@@ -87,7 +91,7 @@ export function createPlaybackController({ environment = globalThis, onState,
       emit('resuming', 'Resuming read aloud…'); arm(session, 3000, 'Resume did not respond, so playback was stopped. You can listen again.'); engine.resume();
     } catch { fail('Playback was stopped because resuming is unavailable.'); }
   }
-  function stop() { release(); clearDiscovery(); emit(state.available ? 'ready' : 'unavailable', state.available ? 'Ready to read the approved words aloud.' : 'Read aloud is unavailable until a local English voice is found.'); }
+  function stop() { release(); clearDiscovery(); emit(state.available ? 'ready' : 'unavailable', state.available ? 'Ready to read the approved words aloud.' : 'Read aloud is unavailable until a matching local voice is found.'); }
   const changed = () => {
     if (!active) { check(); return; }
     try { if (!voices().some(voice => voice.voiceURI === active.voice.voiceURI && voice.lang === active.voice.lang)) fail('The local voice is no longer available. The written card is still here.'); }

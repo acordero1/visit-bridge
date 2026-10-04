@@ -82,3 +82,13 @@ test('startup failure and unsupported browser leave the card readable', () => {
   const absent = createPlaybackController({ environment: {}, onState: value => { state = value; } });
   absent.check(); assert.equal(state.status, 'unavailable'); absent.play(approved()); assert.equal(state.available, false); absent.destroy();
 });
+
+test('Spanish cards require a local Spanish voice; English and remote voices are refused', async () => {
+ const { readFile } = await import('node:fs/promises');
+ const { setReturnTemplate } = await import('../src/visit.js');
+ const pack=JSON.parse(await readFile(new URL('../packs/es-return-visit-v1.json',import.meta.url)));
+ const card=cardFromVisit(confirmPatientText(selectLanguage(confirmVisit(setReturnTemplate(createVisit(),{id:'return-visit-v1',date:'2026-10-06',location:'clinic'}),true),'es',pack),true));
+ const spanish={...localVoice,name:'Device Spanish',lang:'es-MX',voiceURI:'device-es'};
+ for (const voice of [localVoice,{...spanish,localService:false}]) { const f=fixture([voice]);f.controller.check('es');assert.equal(f.states.at(-1).available,false);f.controller.play(card);assert.equal(f.spoken.length,0);f.controller.destroy(); }
+ const f=fixture([localVoice,spanish]);f.controller.check('es');f.controller.play(card);assert.equal(f.spoken[0].voice,spanish);assert.equal(f.spoken[0].text,card.instruction);assert.equal(f.spoken[0].lang,'es-MX');f.controller.destroy();
+});

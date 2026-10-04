@@ -349,3 +349,7 @@ textarea:read-only{background:#f3f5ee}
 .playback-actions .button { gap: 10px; min-height: 48px; }
 .playback-panel > small { display: block; margin-top: 14px; font-size: 11px; line-height: 1.7; color: #6e7d63; }
 @media (max-width: 560px) { .playback-actions .button { width: auto; flex: 1; }.playback-heading .voice-badge { margin-left: 0; }.playback-panel { padding-top: 18px; } }
+
+.translation-notice { padding: 12px; background: #fff3d6; color: #604300; border-radius: 8px; font-size: .9rem; line-height: 1.5; }
+input[type="date"] { width: 100%; padding: 14px; margin-bottom: 20px; border: 1px solid #c9d6d0; border-radius: 8px; font: inherit; background: white; }
+textarea[readonly] { background: #f4f7f5; }
