@@ -1,5 +1,5 @@
-const CACHE_NAME = 'visit-bridge-shell-v39';
-const ASSETS = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png',
+const CACHE_NAME = 'visit-bridge-shell-v41';
+const ASSETS = ['/device-check.html', '/src/device-check.js', '/src/device-check.css', '/src/device-protocol.js', '/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png',
   '/src/styles.css', '/src/app.js', '/src/visit.js', '/src/cards.js', '/src/storage.js', '/src/vault-crypto.js', '/src/consent.js', '/src/session.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js', '/src/handoff.js', '/src/understanding.js', '/src/playback.js', '/src/templates.js', '/src/language-packs.js', '/src/ar.js', '/src/ar-renderer.js', '/src/portable-card.js', '/src/marker-data.js', '/src/marker-ar.js', '/src/markers.js', '/src/scanner.js', '/src/scan-view.js', '/src/replay.js', '/vendor/qr-encode.js', '/vendor/qr-decode.js', '/vendor/qrcode-generator-LICENSE.txt', '/vendor/jsqr-LICENSE.txt', '/vendor/qr-PROVENANCE.json', '/src/model-pack-manifest.js', '/src/sha256.js', '/src/model-pack.js', '/src/pack-worker.js', '/src/pack-controller.js', '/vendor/transformers-LICENSE.txt', '/vendor/onnxruntime-LICENSE.txt', '/vendor/PROVENANCE.json', '/vendor/model-LICENSE.txt', '/vendor/model-PROVENANCE.json'];
 const RUNTIME = ['/vendor/transformers.min.js', '/vendor/ort-wasm-simd-threaded.jsep.mjs', '/vendor/ort-wasm-simd-threaded.jsep.wasm'];
 

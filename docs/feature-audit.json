@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "assessedCommit": "9b8261a",
+  "assessedCommit": "2751a9f",
   "date": "2026-10-04",
   "sources": {
     "schematic": "docs/original-schematic.md",
@@ -9,7 +9,7 @@
     "timelineTurn": "01a104c5-9450-7710-a588-7636b175271f"
   },
   "policy": "The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.",
-  "verificationScope": "Baseline 9b8261a plus marker/replay source inspection, 89 automated tests, real QR codec/browser checks and final cached-shell reference lookup with the application server stopped; see docs/marker-replay.md. Physical iPhone Safari, camera tracking, airplane mode, printer, qualified language/security/clinical and comprehension evidence remain pending.",
+  "verificationScope": "Baseline 2751a9f plus HTTPS/static deployment preparation and standalone device checklist; 91 automated tests pass. Real iPhone, airplane-mode, camera, speaker, qualified Spanish review and participant comparison remain pending; see docs/device-validation.md.",
   "items": [
     {
       "id": "context",
@@ -36,6 +36,10 @@
         {
           "file": "src/app.js",
           "anchor": "Health worker"
+        },
+        {
+          "file": "src/device-check.js",
+          "anchor": "makeDeviceReport"
         }
       ],
       "remaining": "Spanish and iPhone with Safari are chosen. Exact phone model/iOS, country, authorized worker role and local workflow review remain pending.",
@@ -1002,6 +1006,10 @@
         {
           "file": "src/ar-renderer.js",
           "anchor": "placementMatrix"
+        },
+        {
+          "file": "docs/device-validation.md",
+          "anchor": "Airplane-mode journey"
         }
       ],
       "remaining": "Implemented supplementary surface AR; current preview has no immersive support, so GPU/camera/physical placement remain unverified.",
@@ -1090,7 +1098,12 @@
         9,
         10
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "file": "docs/device-validation.md",
+          "anchor": "Airplane-mode journey"
+        }
+      ],
       "remaining": "Fallback loads offline but physical AR and comprehension benefits have not been tested.",
       "acceptance": "Record supported-device offline scan/replay result and compare with plain card; distinguish engagement from measured understanding.",
       "phase": "ar-validation",
@@ -1305,7 +1318,7 @@
     {
       "id": "hosting",
       "title": "Live HTTPS URL and deployable judge-facing page",
-      "status": "missing",
+      "status": "partial",
       "sourceSections": [
         19,
         21
@@ -1313,8 +1326,17 @@
       "timelineParts": [
         11
       ],
-      "evidence": [],
-      "remaining": "Only localhost is running. Prepare hosting configuration and deploy with correct origin/paths, worker/WASM/JSON MIME, headers and first-install instructions.",
+      "evidence": [
+        {
+          "file": "scripts/build-static.mjs",
+          "anchor": "PUBLIC_ASSETS"
+        },
+        {
+          "file": "docs/device-validation.md",
+          "anchor": "Sites manifest"
+        }
+      ],
+      "remaining": "Static deployment package and owner-private HTTPS Site are prepared. Deployment success, phone access and final public judge audience/URL verification must be recorded; other final documentation remains pending.",
       "acceptance": "Public URL opens app; packs/install/offline readiness work at that origin; browser/device limitations and repo link are easy to find.",
       "phase": "release",
       "dependencies": [

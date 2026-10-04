@@ -1,17 +1,17 @@
 # Visit Bridge feature audit
 
-Assessment baseline: Git commit `9b8261a`, 2026-10-04.
+Assessment baseline: Git commit `2751a9f`, 2026-10-04.
 
 The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.
 
-Baseline 9b8261a plus marker/replay source inspection, 89 automated tests, real QR codec/browser checks and final cached-shell reference lookup with the application server stopped; see docs/marker-replay.md. Physical iPhone Safari, camera tracking, airplane mode, printer, qualified language/security/clinical and comprehension evidence remain pending.
+Baseline 2751a9f plus HTTPS/static deployment preparation and standalone device checklist; 91 automated tests pass. Real iPhone, airplane-mode, camera, speaker, qualified Spanish review and participant comparison remain pending; see docs/device-validation.md.
 
 ## Coverage summary
 
-- **partial:** 8
+- **partial:** 9
 - **implemented:** 20
 - **needs-validation:** 8
-- **missing:** 8
+- **missing:** 7
 - **future:** 1
 
 These are requirement counts with unequal scope, not a completion percentage. A source-section mapping is traceability, not proof of perfect semantic completeness.
@@ -29,7 +29,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 5. **Portable patient card and installation — software checkpoint completed; physical device/transfer/print validation pending.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. A pinned, integrity-checked import/export and connected-install path with local transfer instructions is implemented. See docs/portable-cards-and-packs.md for actual browser verification and limits. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
 6. **Original marker-scan AR replay — software implemented; physical device validation pending.** Printed opaque QR references resolve the approved local-vault card offline, with unknown/stale/ambiguous refusal and worker confirmation. Exact approved steps and explicit local-language audio are integrated with camera marker projection and retained surface-placement WebXR AR. See docs/marker-replay.md. Verify real printed-marker scanning/tracking, audio and replay on the iPhone; compare the same task with the plain card before claiming benefit.
 
-7. **Full offline/device and localization verification checkpoint.** The user selected iPhone with Safari. Record model/iOS and establish reachable HTTPS hosting first if necessary for camera access; laptop localhost cannot serve as the phone URL. Once the above flows exist, run the complete create/organize/review/explain/understanding/encrypted-save/reopen/delete journey in actual airplane mode. Measure cold/warm model latency, device memory method, pack transfer size, speech behavior, pronunciation and AR tracking. Inspect network behavior. Obtain and record genuine qualified/fluent/community review; do not remove the Spanish demonstration notice without evidence. If a participant/device cannot be obtained, the requirement remains pending.
+7. **Full offline/device and localization verification — tooling and protocol implemented; actual phone/human checks pending.** The separate `/device-check.html` checklist records capability hints and manually observed outcomes, with no vault access or automatic camera/microphone start. See docs/device-validation.md. The user selected iPhone with Safari. Record model/iOS and establish reachable HTTPS hosting first if necessary for camera access; laptop localhost cannot serve as the phone URL. Once the above flows exist, run the complete create/organize/review/explain/understanding/encrypted-save/reopen/delete journey in actual airplane mode. Measure cold/warm model latency, device memory method, pack transfer size, speech behavior, pronunciation and AR tracking. Inspect network behavior. Obtain and record genuine qualified/fluent/community review; do not remove the Spanish demonstration notice without evidence. If a participant/device cannot be obtained, the requirement remains pending.
 8. **Evidence and baseline checkpoint.** Run 10–20 synthetic common/uncertain scenarios; record fidelity, introduced facts, corrections/rejections, completion and time. Compare the same tasks with the plain form/paper baseline. Obtain consented comprehension/local-worker feedback where possible. Keep scripted results separate from human results; report device, language, sample, method and limits. Use no invented adherence, diagnosis, clinical-safety or health-outcome claims. Record country/year/source for problem evidence separately from model/evaluation inputs.
 9. **Hosting and documentation checkpoint.** Prepare a public HTTPS origin, correct static paths/headers/MIME, pack installation and offline instructions, judge-facing scope, GitHub link and limitations. Consolidate charter/privacy/feasibility/model/license/evaluation/replication documents. A new origin needs its own installation/cache. Confirm the public site, not only localhost. Deployment and external submission occur only within the user's authorized workflow.
 10. **Video and submission checkpoint.** Confirm current challenge/platform requirements and deadline directly. The original brief described a 2–5 minute video; the earlier platform screenshot also showed per-section upload constraints, so verify their current relationship before recording. Prepare the story, actual demonstration, measured baseline claim, language/device/safety/limitations, team photo and links. Complete both platform and Google Form when authorized; tag the exact submitted release.
@@ -47,7 +47,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Status:** partial · **Phase:** context · **Original schematic:** 1, 2, 3, 4, 6, 18, 20 · **Original timeline:** 0, 1
 
-**Evidence:** `README.md` — `frontline`; `src/app.js` — `Health worker`
+**Evidence:** `README.md` — `frontline`; `src/app.js` — `Health worker`; `src/device-check.js` — `makeDeviceReport`
 
 **Remaining:** Spanish and iPhone with Safari are chosen. Exact phone model/iOS, country, authorized worker role and local workflow review remain pending.
 
@@ -407,7 +407,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Status:** needs-validation · **Phase:** ar-validation · **Original schematic:** 16 · **Original timeline:** 10
 
-**Evidence:** `src/ar.js` — `requestHitTestSource`; `src/ar-renderer.js` — `placementMatrix`
+**Evidence:** `src/ar.js` — `requestHitTestSource`; `src/ar-renderer.js` — `placementMatrix`; `docs/device-validation.md` — `Airplane-mode journey`
 
 **Remaining:** Implemented supplementary surface AR; current preview has no immersive support, so GPU/camera/physical placement remain unverified.
 
@@ -443,7 +443,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Status:** missing · **Phase:** ar-validation · **Original schematic:** 15, 16 · **Original timeline:** 9, 10
 
-**Evidence:** No implementation evidence recorded.
+**Evidence:** `docs/device-validation.md` — `Airplane-mode journey`
 
 **Remaining:** Fallback loads offline but physical AR and comprehension benefits have not been tested.
 
@@ -537,11 +537,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Live HTTPS URL and deployable judge-facing page (hosting)
 
-**Status:** missing · **Phase:** release · **Original schematic:** 19, 21 · **Original timeline:** 11
+**Status:** partial · **Phase:** release · **Original schematic:** 19, 21 · **Original timeline:** 11
 
-**Evidence:** No implementation evidence recorded.
+**Evidence:** `scripts/build-static.mjs` — `PUBLIC_ASSETS`; `docs/device-validation.md` — `Sites manifest`
 
-**Remaining:** Only localhost is running. Prepare hosting configuration and deploy with correct origin/paths, worker/WASM/JSON MIME, headers and first-install instructions.
+**Remaining:** Static deployment package and owner-private HTTPS Site are prepared. Deployment success, phone access and final public judge audience/URL verification must be recorded; other final documentation remains pending.
 
 **Accept when:** Public URL opens app; packs/install/offline readiness work at that origin; browser/device limitations and repo link are easy to find.
 

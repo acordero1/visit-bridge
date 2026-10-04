@@ -6,3 +6,6 @@ node_modules/
 work/
 outputs/
 *.log
+dist/
+.sites-checkout/
+.sites-checkout-*/
