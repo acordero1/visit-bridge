@@ -1,4 +1,5 @@
 export const PUBLIC_ASSETS = [
+  "/demo.html",
   "/index.html",
   "/favicon.svg",
   "/manifest.webmanifest",

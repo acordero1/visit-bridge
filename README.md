@@ -1,3 +1,18 @@
+# Visit Bridge — hackathon release
+
+**Challenge:** 04a — World Bank: Small AI for development (Health)
+**Live app:** https://visit-bridge.megaenderdragon01.chatgpt.site
+**Judge guide:** https://visit-bridge.megaenderdragon01.chatgpt.site/demo.html
+**Repository:** https://github.com/acordero1/visit-bridge
+
+Visit Bridge turns a health worker's chosen next step into an approved, portable care handoff: structured review, optional on-device AI wording, constrained Spanish demonstration, exact local-voice playback, encrypted saved cards, printable patient copies, opaque marker scan/replay and camera AR. The typed core remains available without optional AI or speech support.
+
+Run with Node 20+: `npm start`. Build deployable public assets with `npm run build`. Run `npm run check` and `npm test` for verification. No package installation is required. See docs/final-deliverable.md for the demonstration and submission fields. Earlier checkpoint notes below are historical development records.
+
+**Evidence:** 91 automated tests pass. Desktop checks include real local inference, pack transfer and server-stopped cached reopening. Physical iPhone camera/audio/airplane-mode, printer output, qualified Spanish review and human comprehension comparison remain pending. Use fictional information only.
+
+---
+
 # Visit Bridge
 
 Visit Bridge helps a frontline health worker turn an instruction they have already chosen into a simple patient handoff. This prototype addresses World Bank Challenge 4a: Small AI for development, Health.

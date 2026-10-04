@@ -4,7 +4,7 @@ Assessment baseline: Git commit `2751a9f`, 2026-10-04.
 
 The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.
 
-Baseline 2751a9f plus HTTPS/static deployment preparation and standalone device checklist; 91 automated tests pass. Real iPhone, airplane-mode, camera, speaker, qualified Spanish review and participant comparison remain pending; see docs/device-validation.md.
+Baseline 2751a9f plus HTTPS/static deployment preparation and standalone device checklist; 91 automated tests pass. Real iPhone, airplane-mode, camera, speaker, qualified Spanish review and participant comparison remain pending; see docs/device-validation.md. Final judge guide and submission package prepared; video/photo/form submissions remain team actions. Public audience authorized by user.
 
 ## Coverage summary
 
@@ -541,7 +541,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Evidence:** `scripts/build-static.mjs` — `PUBLIC_ASSETS`; `docs/device-validation.md` — `Sites manifest`
 
-**Remaining:** Static deployment package and owner-private HTTPS Site are prepared. Deployment success, phone access and final public judge audience/URL verification must be recorded; other final documentation remains pending.
+**Remaining:** Public HTTPS hosting is enabled with user authorization. Final release deployment success is tracked in outputs/deployment-receipt.json; physical phone access and final user/device evidence remain pending.
 
 **Accept when:** Public URL opens app; packs/install/offline readiness work at that origin; browser/device limitations and repo link are easy to find.
 
