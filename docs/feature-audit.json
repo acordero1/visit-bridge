@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "assessedCommit": "5629fa4",
+  "assessedCommit": "d38c8e7",
   "date": "2026-10-04",
   "sources": {
     "schematic": "docs/original-schematic.md",
@@ -9,7 +9,7 @@
     "timelineTurn": "01a104c5-9450-7710-a588-7636b175271f"
   },
   "policy": "The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.",
-  "verificationScope": "Baseline 5629fa4 plus structured-handoff checkpoint source inspection, 50 automated checks and recorded browser observations; see docs/structured-handoff.md. Source traceability is not clinical or target-device validation.",
+  "verificationScope": "Baseline d38c8e7 plus patient-understanding checkpoint source inspection, 57 automated tests and recorded browser checks; see docs/patient-understanding.md. Software behavior is not clinical, human-comprehension or target-device validation.",
   "items": [
     {
       "id": "context",
@@ -461,7 +461,7 @@
     {
       "id": "patient-layout",
       "title": "One action per line, large text and meaningful pictograms",
-      "status": "partial",
+      "status": "implemented",
       "sourceSections": [
         7,
         8,
@@ -474,19 +474,19 @@
       ],
       "evidence": [
         {
-          "file": "src/app.js",
-          "anchor": "function patientCard"
+          "file": "src/understanding.js",
+          "anchor": "patientLines"
         },
         {
-          "file": "src/ar-renderer.js",
-          "anchor": "Pictograms"
+          "file": "src/app.js",
+          "anchor": "patient-symbol"
         },
         {
           "file": "src/styles.css",
-          "anchor": ".final-instruction{white-space:pre-wrap}"
+          "anchor": ".patient-line"
         }
       ],
-      "remaining": "Structured approved details now display on separate lines. Action-specific pictograms and the understanding check remain outstanding.",
+      "remaining": "Approved line order and administrative symbols implemented. Arbitrary worker wording retains its own line breaks; no automatic sentence reinterpretation. Physical-device readability and participant symbol interpretation remain under accessibility/comprehension.",
       "acceptance": "All approved actions remain readable and in order; icons supplement text/audio; no color-only meaning or inferred clinical imagery.",
       "phase": "handoff",
       "dependencies": [
@@ -529,7 +529,7 @@
     {
       "id": "understanding",
       "title": "Worker checks and records patient understanding",
-      "status": "missing",
+      "status": "implemented",
       "sourceSections": [
         1,
         5,
@@ -543,8 +543,21 @@
         4,
         9
       ],
-      "evidence": [],
-      "remaining": "Add a teach-back prompt and worker-marked understood/clarified/needs-follow-up result, linked to the approved wording revision; clarify/replay without automated comprehension scoring.",
+      "evidence": [
+        {
+          "file": "src/visit.js",
+          "anchor": "markUnderstanding"
+        },
+        {
+          "file": "src/understanding.js",
+          "anchor": "approvedContentStamp"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "function understandingPanel"
+        }
+      ],
+      "remaining": "Worker recording and approval-version behavior implemented. Actual patient comprehension and frontline-worker review remain tracked under comprehension; no automated score or patient-answer storage.",
       "acceptance": "Worker can explain, ask patient to repeat the next step, mark result, reclarify and save the result; changing approved content requires a fresh understanding check.",
       "phase": "handoff",
       "dependencies": [
@@ -576,7 +589,7 @@
           "anchor": "isValidCard"
         }
       ],
-      "remaining": "Current records are plaintext. Encrypt under encrypted-storage; add understanding/structured fields with migration compatibility.",
+      "remaining": "Schema 5 saves understanding against the exact approved snapshot; schemas 1\u20134 remain readable. Current records are plaintext until encrypted-storage is implemented.",
       "acceptance": "Save succeeds after transaction commit; reopening retains approval/provenance; cancellation and delete failures preserve correct state.",
       "phase": "maintain",
       "dependencies": []
@@ -1310,7 +1323,7 @@
     {
       "id": "home-readiness",
       "title": "Home/capture pack availability and explicit input language",
-      "status": "partial",
+      "status": "implemented",
       "sourceSections": [
         7,
         8,
@@ -1324,14 +1337,14 @@
       "evidence": [
         {
           "file": "src/app.js",
-          "anchor": "function home"
+          "anchor": "function readinessPanel"
         },
         {
           "file": "src/app.js",
-          "anchor": "function packControls"
+          "anchor": "Worker input language: English"
         }
       ],
-      "remaining": "Pack availability is shown in Handoff, not on Home; add a home readiness summary and explicit worker input language in Capture, preserving independent shell/model/speech/language statuses.",
+      "remaining": "Separate shell/model/dictation/text-pack/browser-reported local-voice statuses implemented. Actual hardware/offline voice verification remains tracked separately.",
       "acceptance": "Before starting, the worker can identify usable local language and input modes; shell readiness never implies every pack or voice is available.",
       "phase": "handoff",
       "dependencies": [

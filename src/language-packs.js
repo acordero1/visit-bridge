@@ -1,7 +1,7 @@
 import { validPack } from './templates.js';
-export const PACK_URL = '/packs/es-return-visit-v1.json';
-export const PACK_CACHE = 'visit-bridge-language-es-v1';
-export const PACK_SHA256 = 'dbabb38a06ee73bf82f544608b612f2f3895cbd60e0e275782c24043d408c5ed';
+export const PACK_URL = '/packs/es-return-visit-v1.1.json';
+export const PACK_CACHE = 'visit-bridge-language-es-v1.1';
+export const PACK_SHA256 = '34ab7f8104a841e28224c273d2dc339a062d2d0390907fb5468b0fa966004a64';
 async function verified(response) {
   if (!response?.ok) throw new Error('The Spanish demonstration pack is unavailable. Install it while connected.');
   const bytes = await response.arrayBuffer();

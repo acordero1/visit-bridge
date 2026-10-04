@@ -17,7 +17,7 @@ export function templateInstruction(template, pack = null) {
 }
 export function validPack(pack) {
   const required = ['nextStep','fromWorker','approved','demoNotice','hearStep','play','again','pause','resume','stop','ready','starting','speaking','paused','pausing','resuming','ended','checking','unavailable','error','checkVoice','voice','playbackNote'];
-  return pack?.id === 'visit-bridge-es-return-visit' && pack.version === '1.0.0' && pack.language === 'es' && pack.sourceLanguage === 'en'
+  return pack?.id === 'visit-bridge-es-return-visit' && ['1.0.0', '1.1.0'].includes(pack.version) && pack.language === 'es' && pack.sourceLanguage === 'en'
     && pack.templateId === TEMPLATE_ID && pack.reviewStatus === 'demonstration-unvalidated'
     && pack.professionalReview === null && pack.communityReview === null
     && pack.sentence === 'Vuelva a {location} el {weekday}, {date}.'
@@ -27,6 +27,7 @@ export function validPack(pack) {
     && !pack.sentence.replace(/\{(?:location|weekday|date)\}/g, '').includes('{')
     && Array.isArray(pack.weekdays) && pack.weekdays.length === 7 && pack.weekdays.every(word => typeof word === 'string' && word.length > 0 && word.length < 40)
     && Object.keys(LOCATIONS).every(key => typeof pack.locations?.[key] === 'string' && pack.locations[key].length > 0 && pack.locations[key].length < 80)
+    && (pack.version === '1.0.0' || ['teachBack','askAgain','date','place','time','item','task','action'].every(key => typeof pack.labels?.[key] === 'string' && pack.labels[key].length > 0 && pack.labels[key].length < 250))
     && required.every(key => typeof pack.labels?.[key] === 'string' && pack.labels[key].length > 0 && pack.labels[key].length < 250);
 }
 export function validTranslation(translation, template, source, finalText) {

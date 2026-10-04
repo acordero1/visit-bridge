@@ -5,7 +5,7 @@ import { createVisit, editInstruction, setReturnTemplate, selectLanguage, confir
 import { validTemplate, templateInstruction, validPack } from '../src/templates.js';
 import { cardFromVisit, isValidCard } from '../src/cards.js';
 import { PACK_SHA256, PACK_URL, loadLanguagePack, installLanguagePack } from '../src/language-packs.js';
-const bytes = await readFile(new URL('../packs/es-return-visit-v1.json', import.meta.url));
+const bytes = await readFile(new URL('../packs/es-return-visit-v1.1.json', import.meta.url));
 const pack = JSON.parse(bytes);
 const template = { id: 'return-visit-v1', date: '2026-10-06', location: 'community-clinic' };
 const translated = () => selectLanguage(confirmVisit(setReturnTemplate(createVisit(), template), true), 'es', pack);

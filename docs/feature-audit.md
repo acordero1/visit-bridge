@@ -1,17 +1,17 @@
 # Visit Bridge feature audit
 
-Assessment baseline: Git commit `5629fa4`, 2026-10-04.
+Assessment baseline: Git commit `d38c8e7`, 2026-10-04.
 
 The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.
 
-Baseline 5629fa4 plus structured-handoff checkpoint source inspection, 50 automated checks and recorded browser observations; see docs/structured-handoff.md. Source traceability is not clinical or target-device validation.
+Baseline d38c8e7 plus patient-understanding checkpoint source inspection, 57 automated tests and recorded browser checks; see docs/patient-understanding.md. Software behavior is not clinical, human-comprehension or target-device validation.
 
 ## Coverage summary
 
-- **partial:** 11
-- **implemented:** 12
+- **partial:** 9
+- **implemented:** 15
 - **needs-validation:** 6
-- **missing:** 15
+- **missing:** 14
 - **future:** 1
 
 These are requirement counts with unequal scope, not a completion percentage. A source-section mapping is traceability, not proof of perfect semantic completeness.
@@ -24,8 +24,8 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 1. **Context and device decisions, alongside development.** Record the chosen frontline role, target setting, real existing device, browser and Spanish-language relevance. Obtain fluent/professional/community review when available. The software cannot manufacture human review, clinic access, or hardware measurements. Keep each pending item visible. The earlier phone question remains unanswered; do not assume a compatible AR phone.
 2. **Structured administrative handoff and explicit uncertainty — implementation checkpoint completed; field-model/device validation tracked separately.** Add action/date/time/place/item/task and optional separately labeled patient-reported information. Preserve the source and span provenance. Use unknown/ambiguous states; never infer a date or referral decision. Add constrained local-model extraction and validated output schemas, with a complete typed baseline. Put source, fields and model draft side by side. Keep clinical content outside supported model transformation. Changes revoke approval and future understanding results. Validate no new facts, uncertain date, missing required fields, optional blanks and rejected output. Do not collect patient concerns merely because a field exists.
-3. **Next coding checkpoint: patient understanding.** Add one approved action per line, simple action-specific symbols and a worker-facing teach-back prompt. Record understood, clarified or needs-follow-up against the exact approved revision. Let the worker replay/clarify without automatic patient scoring. Add Home pack readiness and explicit input language. Save/reopen understanding status with the card. Do not equate marking understood with proven medical comprehension.
-4. **Encrypted vault and privacy checkpoint.** Add authenticated encrypted local payloads, protected key handling, explicit lock/unlock, inactivity timeout and active-session cancellation on lock. Specify encounter recording/save consent and lost/shared-device behavior. Plan safe legacy-record migration, recovery/reset limits and deletion without silently losing saved cards. Current plaintext storage remains clearly disclosed until migration actually happens; no production-health-data safety claim.
+3. **Patient understanding — implementation completed; human/device validation pending.** Add one approved action per line, simple action-specific symbols and a worker-facing teach-back prompt. Record understood, clarified or needs-follow-up against the exact approved revision. Let the worker replay/clarify without automatic patient scoring. Add Home pack readiness and explicit input language. Save/reopen understanding status with the card. Do not equate marking understood with proven medical comprehension.
+4. **Next coding checkpoint: encrypted vault and privacy.** Add authenticated encrypted local payloads, protected key handling, explicit lock/unlock, inactivity timeout and active-session cancellation on lock. Specify encounter recording/save consent and lost/shared-device behavior. Plan safe legacy-record migration, recovery/reset limits and deletion without silently losing saved cards. Current plaintext storage remains clearly disclosed until migration actually happens; no production-health-data safety claim.
 5. **Portable patient card and installation checkpoint.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. Add a local verified model-pack import/export path and explicit weak-connection/side-loading instructions. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
 6. **Original marker-scan AR replay checkpoint.** Add the original printed/on-screen visual marker and offline lookup of the correct approved card. Unknown or stale markers must not select a different card. Show the approved action sequence and explicit local-language audio replay inside AR. Keep existing surface-placement AR as an additional mode. Validate on the actual phone; unsupported capabilities retain plain text/audio. Test scanning/replay offline and compare with the plain-card experience before claiming benefit.
 7. **Full offline/device and localization verification checkpoint.** Once the above flows exist, run the complete create/organize/review/explain/understanding/encrypted-save/reopen/delete journey in actual airplane mode. Measure cold/warm model latency, device memory method, pack transfer size, speech behavior, pronunciation and AR tracking. Inspect network behavior. Obtain and record genuine qualified/fluent/community review; do not remove the Spanish demonstration notice without evidence. If a participant/device cannot be obtained, the requirement remains pending.
@@ -212,11 +212,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### One action per line, large text and meaningful pictograms (patient-layout)
 
-**Status:** partial · **Phase:** handoff · **Original schematic:** 7, 8, 10, 15 · **Original timeline:** 4, 5
+**Status:** implemented · **Phase:** handoff · **Original schematic:** 7, 8, 10, 15 · **Original timeline:** 4, 5
 
-**Evidence:** `src/app.js` — `function patientCard`; `src/ar-renderer.js` — `Pictograms`; `src/styles.css` — `.final-instruction{white-space:pre-wrap}`
+**Evidence:** `src/understanding.js` — `patientLines`; `src/app.js` — `patient-symbol`; `src/styles.css` — `.patient-line`
 
-**Remaining:** Structured approved details now display on separate lines. Action-specific pictograms and the understanding check remain outstanding.
+**Remaining:** Approved line order and administrative symbols implemented. Arbitrary worker wording retains its own line breaks; no automatic sentence reinterpretation. Physical-device readability and participant symbol interpretation remain under accessibility/comprehension.
 
 **Accept when:** All approved actions remain readable and in order; icons supplement text/audio; no color-only meaning or inferred clinical imagery.
 
@@ -236,11 +236,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Worker checks and records patient understanding (understanding)
 
-**Status:** missing · **Phase:** handoff · **Original schematic:** 1, 5, 7, 8, 11, 15, 20 · **Original timeline:** 4, 9
+**Status:** implemented · **Phase:** handoff · **Original schematic:** 1, 5, 7, 8, 11, 15, 20 · **Original timeline:** 4, 9
 
-**Evidence:** No implementation evidence recorded.
+**Evidence:** `src/visit.js` — `markUnderstanding`; `src/understanding.js` — `approvedContentStamp`; `src/app.js` — `function understandingPanel`
 
-**Remaining:** Add a teach-back prompt and worker-marked understood/clarified/needs-follow-up result, linked to the approved wording revision; clarify/replay without automated comprehension scoring.
+**Remaining:** Worker recording and approval-version behavior implemented. Actual patient comprehension and frontline-worker review remain tracked under comprehension; no automated score or patient-answer storage.
 
 **Accept when:** Worker can explain, ask patient to repeat the next step, mark result, reclarify and save the result; changing approved content requires a fresh understanding check.
 
@@ -252,7 +252,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Evidence:** `src/storage.js` — `cardRepository`; `src/cards.js` — `isValidCard`
 
-**Remaining:** Current records are plaintext. Encrypt under encrypted-storage; add understanding/structured fields with migration compatibility.
+**Remaining:** Schema 5 saves understanding against the exact approved snapshot; schemas 1–4 remain readable. Current records are plaintext until encrypted-storage is implemented.
 
 **Accept when:** Save succeeds after transaction commit; reopening retains approval/provenance; cancellation and delete failures preserve correct state.
 
@@ -572,11 +572,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Home/capture pack availability and explicit input language (home-readiness)
 
-**Status:** partial · **Phase:** handoff · **Original schematic:** 7, 8, 10, 11 · **Original timeline:** 2, 5
+**Status:** implemented · **Phase:** handoff · **Original schematic:** 7, 8, 10, 11 · **Original timeline:** 2, 5
 
-**Evidence:** `src/app.js` — `function home`; `src/app.js` — `function packControls`
+**Evidence:** `src/app.js` — `function readinessPanel`; `src/app.js` — `Worker input language: English`
 
-**Remaining:** Pack availability is shown in Handoff, not on Home; add a home readiness summary and explicit worker input language in Capture, preserving independent shell/model/speech/language statuses.
+**Remaining:** Separate shell/model/dictation/text-pack/browser-reported local-voice statuses implemented. Actual hardware/offline voice verification remains tracked separately.
 
 **Accept when:** Before starting, the worker can identify usable local language and input modes; shell readiness never implies every pack or voice is available.
 

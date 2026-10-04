@@ -1,6 +1,6 @@
-const CACHE_NAME = 'visit-bridge-shell-v25';
+const CACHE_NAME = 'visit-bridge-shell-v27';
 const ASSETS = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png',
-  '/src/styles.css', '/src/app.js', '/src/visit.js', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js', '/src/handoff.js', '/src/playback.js', '/src/templates.js', '/src/language-packs.js', '/src/ar.js', '/src/ar-renderer.js'];
+  '/src/styles.css', '/src/app.js', '/src/visit.js', '/src/cards.js', '/src/storage.js', '/src/offline.js', '/src/speech.js', '/src/model.js', '/src/model-worker.js', '/src/model-config.js', '/src/wording.js', '/src/handoff.js', '/src/understanding.js', '/src/playback.js', '/src/templates.js', '/src/language-packs.js', '/src/ar.js', '/src/ar-renderer.js'];
 const RUNTIME = ['/vendor/transformers.min.js', '/vendor/ort-wasm-simd-threaded.jsep.mjs', '/vendor/ort-wasm-simd-threaded.jsep.wasm'];
 
 self.addEventListener('install', event => {
@@ -17,10 +17,10 @@ self.addEventListener('activate', event => {
 });
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.origin !== self.location.origin || (!ASSETS.includes(url.pathname) && !RUNTIME.includes(url.pathname) && url.pathname !== '/packs/es-return-visit-v1.json')) return;
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || (!ASSETS.includes(url.pathname) && !RUNTIME.includes(url.pathname) && !['/packs/es-return-visit-v1.json','/packs/es-return-visit-v1.1.json'].includes(url.pathname))) return;
   event.respondWith((async () => {
-    if (url.pathname === '/packs/es-return-visit-v1.json' && event.request.cache === 'reload') return fetch(event.request);
-    const cache = await caches.open(url.pathname === '/packs/es-return-visit-v1.json' ? 'visit-bridge-language-es-v1' : RUNTIME.includes(url.pathname) ? 'visit-bridge-model-smollm2-135m-v1' : CACHE_NAME);
+    if (url.pathname.startsWith('/packs/es-return-visit-') && event.request.cache === 'reload') return fetch(event.request);
+    const cache = await caches.open(url.pathname.startsWith('/packs/es-return-visit-') ? (url.pathname.endsWith('v1.1.json') ? 'visit-bridge-language-es-v1.1' : 'visit-bridge-language-es-v1') : RUNTIME.includes(url.pathname) ? 'visit-bridge-model-smollm2-135m-v1' : CACHE_NAME);
     return (await cache.match(url.pathname)) || fetch(event.request);
   })());
 });

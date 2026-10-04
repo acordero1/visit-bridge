@@ -1,10 +1,11 @@
+import { validUnderstanding, currentUnderstanding } from './understanding.js';
 import { validHandoff, wordingIssue, spanishHandoffSupported } from './handoff.js';
 import { validTemplate, validTranslation, templateInstruction } from './templates.js';
 import { canShare, instructionError, LANGUAGES } from './visit.js';
 
 export function cardFromVisit(visit) {
   if (!canShare(visit)) throw new Error('Review and confirm the instruction before saving it.');
-  return { schemaVersion: 4, handoff: visit.handoff ? structuredClone(visit.handoff) : null, id: visit.id, instruction: visit.patientText, originalLanguage: 'en', template: visit.template ? structuredClone(visit.template) : null, translation: visit.translation ? structuredClone(visit.translation) : null, originalInstruction: visit.originalInstruction,
+  return { schemaVersion: 5, understanding: currentUnderstanding(visit) ? structuredClone(visit.understanding) : null, handoff: visit.handoff ? structuredClone(visit.handoff) : null, id: visit.id, instruction: visit.patientText, originalLanguage: visit.originalLanguage, template: visit.template ? structuredClone(visit.template) : null, translation: visit.translation ? structuredClone(visit.translation) : null, originalInstruction: visit.originalInstruction,
     patientTextRevision: visit.patientTextRevision, patientApprovedRevision: visit.patientApprovedRevision,
     patientApprovedAt: visit.patientApprovedAt, patientTextOrigin: visit.patientTextOrigin, modelDraft: visit.modelDraft,
     language: visit.language, revision: visit.revision, approvedRevision: visit.approvedRevision,
@@ -12,7 +13,7 @@ export function cardFromVisit(visit) {
 }
 
 export function isValidCard(card) {
-  return [1, 2, 3, 4].includes(card?.schemaVersion) && typeof card.id === 'string' && card.id.length > 0
+  return [1, 2, 3, 4, 5].includes(card?.schemaVersion) && typeof card.id === 'string' && card.id.length > 0
     && typeof card.instruction === 'string' && !instructionError(card.instruction)
     && Number.isInteger(card.revision) && card.revision >= 0 && card.approvedRevision === card.revision
     && LANGUAGES.some(language => language.available && language.code === card.language)
@@ -24,13 +25,14 @@ export function isValidCard(card) {
     && (card.schemaVersion === 1 || (typeof card.originalInstruction === 'string' && !instructionError(card.originalInstruction)
       && Number.isInteger(card.patientTextRevision) && card.patientTextRevision >= 0 && card.patientApprovedRevision === card.patientTextRevision
       && typeof card.patientApprovedAt === 'string' && Number.isFinite(Date.parse(card.patientApprovedAt))
-      && ['original', 'model', 'worker-edited', ...(card.schemaVersion === 4 ? ['structured'] : []), ...(card.schemaVersion >= 3 ? ['translation-template'] : [])].includes(card.patientTextOrigin)
+      && ['original', 'model', 'worker-edited', ...(card.schemaVersion >= 4 ? ['structured'] : []), ...(card.schemaVersion >= 3 ? ['translation-template'] : [])].includes(card.patientTextOrigin)
       && (card.modelDraft === null || (typeof card.modelDraft?.text === 'string' && !instructionError(card.modelDraft.text)
         && card.modelDraft.revision === card.revision && card.modelDraft.language === card.language
         && typeof card.modelDraft.model === 'string' && typeof card.modelDraft.modelRevision === 'string'))))
-    && (card.schemaVersion !== 4 || card.patientTextOrigin !== 'structured' || card.handoff !== null)
-    && (card.schemaVersion !== 4 || card.handoff === null || (validHandoff(card.handoff, card.originalInstruction, card.revision)
+    && (card.schemaVersion < 4 || card.patientTextOrigin !== 'structured' || card.handoff !== null)
+    && (card.schemaVersion < 4 || card.handoff === null || (validHandoff(card.handoff, card.originalInstruction, card.revision)
       && (card.language === 'en' ? !wordingIssue(card.handoff, card.instruction) : spanishHandoffSupported(card.handoff, card.template))))
+    && (card.schemaVersion < 5 || (Object.hasOwn(card, 'understanding') && validUnderstanding(card.understanding, card)))
     && ['confirmedAt', 'createdAt', 'savedAt'].every(key => typeof card[key] === 'string' && Number.isFinite(Date.parse(card[key])));
 }
 
