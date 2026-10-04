@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "assessedCommit": "9fa3cf0",
+  "assessedCommit": "9b8261a",
   "date": "2026-10-04",
   "sources": {
     "schematic": "docs/original-schematic.md",
@@ -9,7 +9,7 @@
     "timelineTurn": "01a104c5-9450-7710-a588-7636b175271f"
   },
   "policy": "The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.",
-  "verificationScope": "Baseline 9fa3cf0 plus portable card/model pack checkpoint source inspection, 76 automated tests, real 207 MB export/import and imported-model inference with the receiving app server stopped; see docs/portable-cards-and-packs.md and docs/device-vault.md. This is not full network-disconnection, target-phone, printer/PDF, qualified language, security or clinical validation.",
+  "verificationScope": "Baseline 9b8261a plus marker/replay source inspection, 89 automated tests, real QR codec/browser checks and final cached-shell reference lookup with the application server stopped; see docs/marker-replay.md. Physical iPhone Safari, camera tracking, airplane mode, printer, qualified language/security/clinical and comprehension evidence remain pending.",
   "items": [
     {
       "id": "context",
@@ -38,7 +38,7 @@
           "anchor": "Health worker"
         }
       ],
-      "remaining": "Generic worker and fictional clinic are shown. Spanish is chosen; no country, specific authorized role or physical device is established.",
+      "remaining": "Spanish and iPhone with Safari are chosen. Exact phone model/iOS, country, authorized worker role and local workflow review remain pending.",
       "acceptance": "Document actual role, setting, device/OS/browser and language; label fictional assumptions; obtain local workflow input.",
       "phase": "context",
       "dependencies": []
@@ -1014,7 +1014,7 @@
     {
       "id": "ar-marker",
       "title": "Original visual-marker scan-to-replay experience",
-      "status": "missing",
+      "status": "needs-validation",
       "sourceSections": [
         16,
         20
@@ -1024,11 +1024,19 @@
       ],
       "evidence": [
         {
-          "file": "src/ar.js",
-          "anchor": "requestHitTestSource"
+          "file": "docs/marker-replay.md",
+          "anchor": "89 automated tests"
+        },
+        {
+          "file": "src/marker-ar.js",
+          "anchor": "createMarkerAR"
+        },
+        {
+          "file": "src/markers.js",
+          "anchor": "resolveMarker"
         }
       ],
-      "remaining": "Current AR detects surfaces, not card markers. Add a printed/on-screen marker, offline recognition and approved-card lookup; preserve spatial AR as an additional mode.",
+      "remaining": "Opaque printed QR, explicit local scan/lookup/confirmation and camera-marker projection are implemented and software-tested. Actual printed-marker camera tracking and iPhone Safari/airplane-mode evidence remain pending.",
       "acceptance": "Scanning the worker's card on a compatible device identifies the correct approved snapshot offline; unknown/stale markers fail clearly without retrieving another patient's card.",
       "phase": "ar-replay",
       "dependencies": [
@@ -1040,7 +1048,7 @@
     {
       "id": "ar-replay",
       "title": "Approved visual sequence and local-language audio in AR",
-      "status": "missing",
+      "status": "needs-validation",
       "sourceSections": [
         16
       ],
@@ -1049,11 +1057,19 @@
       ],
       "evidence": [
         {
-          "file": "src/app.js",
-          "anchor": "playback.stop(); speech.cancel(); model.cancel(); arSnapshot"
+          "file": "docs/marker-replay.md",
+          "anchor": "89 automated tests"
+        },
+        {
+          "file": "src/marker-ar.js",
+          "anchor": "createMarkerAR"
+        },
+        {
+          "file": "src/replay.js",
+          "anchor": "approvedStep"
         }
       ],
-      "remaining": "AR shows one text plane and stops regular audio on entry. Add an administrative action sequence and explicit approved-audio replay in the AR experience.",
+      "remaining": "Exact approved visual steps and local-language speech are integrated with marker and surface AR; Spanish notice remains. Physical device/speaker/pronunciation and actual offline verification remain pending.",
       "acceptance": "Each visual step represents an approved action; exact matching local-language audio can replay/stop inside AR; unsupported voice retains text; no generated clinical imagery.",
       "phase": "ar-replay",
       "dependencies": [

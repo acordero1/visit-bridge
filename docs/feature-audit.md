@@ -1,17 +1,17 @@
 # Visit Bridge feature audit
 
-Assessment baseline: Git commit `9fa3cf0`, 2026-10-04.
+Assessment baseline: Git commit `9b8261a`, 2026-10-04.
 
 The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.
 
-Baseline 9fa3cf0 plus portable card/model pack checkpoint source inspection, 76 automated tests, real 207 MB export/import and imported-model inference with the receiving app server stopped; see docs/portable-cards-and-packs.md and docs/device-vault.md. This is not full network-disconnection, target-phone, printer/PDF, qualified language, security or clinical validation.
+Baseline 9b8261a plus marker/replay source inspection, 89 automated tests, real QR codec/browser checks and final cached-shell reference lookup with the application server stopped; see docs/marker-replay.md. Physical iPhone Safari, camera tracking, airplane mode, printer, qualified language/security/clinical and comprehension evidence remain pending.
 
 ## Coverage summary
 
 - **partial:** 8
 - **implemented:** 20
-- **needs-validation:** 6
-- **missing:** 10
+- **needs-validation:** 8
+- **missing:** 8
 - **future:** 1
 
 These are requirement counts with unequal scope, not a completion percentage. A source-section mapping is traceability, not proof of perfect semantic completeness.
@@ -22,13 +22,14 @@ The archived full schematic and timeline remain the authoritative feature refere
 
 The seven implemented checkpoints are not the original 13-part timeline. The original timeline is archived, not replaced. The following checkpoints resume development by closing its specific gaps. The user's later instructions retain every schematic feature, including AR. No prior 'cut it if time gets tight' wording authorizes dropping features now.
 
-1. **Context and device decisions, alongside development.** Record the chosen frontline role, target setting, real existing device, browser and Spanish-language relevance. Obtain fluent/professional/community review when available. The software cannot manufacture human review, clinic access, or hardware measurements. Keep each pending item visible. The earlier phone question remains unanswered; do not assume a compatible AR phone.
+1. **Context and device decisions, alongside development.** Record the chosen frontline role, target setting, real existing device, browser and Spanish-language relevance. Obtain fluent/professional/community review when available. The software cannot manufacture human review, clinic access, or hardware measurements. Keep each pending item visible. The user selected iPhone with Safari; record its model and iOS version before device checks. Immersive WebXR support is not assumed.
 2. **Structured administrative handoff and explicit uncertainty — implementation checkpoint completed; field-model/device validation tracked separately.** Add action/date/time/place/item/task and optional separately labeled patient-reported information. Preserve the source and span provenance. Use unknown/ambiguous states; never infer a date or referral decision. Add constrained local-model extraction and validated output schemas, with a complete typed baseline. Put source, fields and model draft side by side. Keep clinical content outside supported model transformation. Changes revoke approval and future understanding results. Validate no new facts, uncertain date, missing required fields, optional blanks and rejected output. Do not collect patient concerns merely because a field exists.
 3. **Patient understanding — implementation completed; human/device validation pending.** Add one approved action per line, simple action-specific symbols and a worker-facing teach-back prompt. Record understood, clarified or needs-follow-up against the exact approved revision. Let the worker replay/clarify without automatic patient scoring. Add Home pack readiness and explicit input language. Save/reopen understanding status with the card. Do not equate marking understood with proven medical comprehension.
 4. **Encrypted vault and privacy — implementation checkpoint completed; security/context/device validation remains pending.** Authenticated full-payload encryption, passphrase-protected keys, explicit lock/unlock, inactivity/background/page lifecycle locking, media cancellation, independent fictional dictation/save permission, verified atomic legacy migration, passphrase change, deliberate erase and cross-tab write fencing are implemented. Legacy records remain plaintext until the user completes setup. See docs/device-vault.md for tested behavior and recovery/device-loss limits; no production-health-data safety claim.
 5. **Portable patient card and installation — software checkpoint completed; physical device/transfer/print validation pending.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. A pinned, integrity-checked import/export and connected-install path with local transfer instructions is implemented. See docs/portable-cards-and-packs.md for actual browser verification and limits. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
-6. **Next coding checkpoint: original marker-scan AR replay.** Add the original printed/on-screen visual marker and offline lookup of the correct approved card. Unknown or stale markers must not select a different card. Show the approved action sequence and explicit local-language audio replay inside AR. Keep existing surface-placement AR as an additional mode. Validate on the actual phone; unsupported capabilities retain plain text/audio. Test scanning/replay offline and compare with the plain-card experience before claiming benefit.
-7. **Full offline/device and localization verification checkpoint.** Once the above flows exist, run the complete create/organize/review/explain/understanding/encrypted-save/reopen/delete journey in actual airplane mode. Measure cold/warm model latency, device memory method, pack transfer size, speech behavior, pronunciation and AR tracking. Inspect network behavior. Obtain and record genuine qualified/fluent/community review; do not remove the Spanish demonstration notice without evidence. If a participant/device cannot be obtained, the requirement remains pending.
+6. **Original marker-scan AR replay — software implemented; physical device validation pending.** Printed opaque QR references resolve the approved local-vault card offline, with unknown/stale/ambiguous refusal and worker confirmation. Exact approved steps and explicit local-language audio are integrated with camera marker projection and retained surface-placement WebXR AR. See docs/marker-replay.md. Verify real printed-marker scanning/tracking, audio and replay on the iPhone; compare the same task with the plain card before claiming benefit.
+
+7. **Full offline/device and localization verification checkpoint.** The user selected iPhone with Safari. Record model/iOS and establish reachable HTTPS hosting first if necessary for camera access; laptop localhost cannot serve as the phone URL. Once the above flows exist, run the complete create/organize/review/explain/understanding/encrypted-save/reopen/delete journey in actual airplane mode. Measure cold/warm model latency, device memory method, pack transfer size, speech behavior, pronunciation and AR tracking. Inspect network behavior. Obtain and record genuine qualified/fluent/community review; do not remove the Spanish demonstration notice without evidence. If a participant/device cannot be obtained, the requirement remains pending.
 8. **Evidence and baseline checkpoint.** Run 10–20 synthetic common/uncertain scenarios; record fidelity, introduced facts, corrections/rejections, completion and time. Compare the same tasks with the plain form/paper baseline. Obtain consented comprehension/local-worker feedback where possible. Keep scripted results separate from human results; report device, language, sample, method and limits. Use no invented adherence, diagnosis, clinical-safety or health-outcome claims. Record country/year/source for problem evidence separately from model/evaluation inputs.
 9. **Hosting and documentation checkpoint.** Prepare a public HTTPS origin, correct static paths/headers/MIME, pack installation and offline instructions, judge-facing scope, GitHub link and limitations. Consolidate charter/privacy/feasibility/model/license/evaluation/replication documents. A new origin needs its own installation/cache. Confirm the public site, not only localhost. Deployment and external submission occur only within the user's authorized workflow.
 10. **Video and submission checkpoint.** Confirm current challenge/platform requirements and deadline directly. The original brief described a 2–5 minute video; the earlier platform screenshot also showed per-section upload constraints, so verify their current relationship before recording. Prepare the story, actual demonstration, measured baseline claim, language/device/safety/limitations, team photo and links. Complete both platform and Google Form when authorized; tag the exact submitted release.
@@ -48,7 +49,7 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Evidence:** `README.md` — `frontline`; `src/app.js` — `Health worker`
 
-**Remaining:** Generic worker and fictional clinic are shown. Spanish is chosen; no country, specific authorized role or physical device is established.
+**Remaining:** Spanish and iPhone with Safari are chosen. Exact phone model/iOS, country, authorized worker role and local workflow review remain pending.
 
 **Accept when:** Document actual role, setting, device/OS/browser and language; label fictional assumptions; obtain local workflow input.
 
@@ -416,11 +417,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Original visual-marker scan-to-replay experience (ar-marker)
 
-**Status:** missing · **Phase:** ar-replay · **Original schematic:** 16, 20 · **Original timeline:** 10
+**Status:** needs-validation · **Phase:** ar-replay · **Original schematic:** 16, 20 · **Original timeline:** 10
 
-**Evidence:** `src/ar.js` — `requestHitTestSource`
+**Evidence:** `docs/marker-replay.md` — `89 automated tests`; `src/marker-ar.js` — `createMarkerAR`; `src/markers.js` — `resolveMarker`
 
-**Remaining:** Current AR detects surfaces, not card markers. Add a printed/on-screen marker, offline recognition and approved-card lookup; preserve spatial AR as an additional mode.
+**Remaining:** Opaque printed QR, explicit local scan/lookup/confirmation and camera-marker projection are implemented and software-tested. Actual printed-marker camera tracking and iPhone Safari/airplane-mode evidence remain pending.
 
 **Accept when:** Scanning the worker's card on a compatible device identifies the correct approved snapshot offline; unknown/stale markers fail clearly without retrieving another patient's card.
 
@@ -428,11 +429,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Approved visual sequence and local-language audio in AR (ar-replay)
 
-**Status:** missing · **Phase:** ar-replay · **Original schematic:** 16 · **Original timeline:** 10
+**Status:** needs-validation · **Phase:** ar-replay · **Original schematic:** 16 · **Original timeline:** 10
 
-**Evidence:** `src/app.js` — `playback.stop(); speech.cancel(); model.cancel(); arSnapshot`
+**Evidence:** `docs/marker-replay.md` — `89 automated tests`; `src/marker-ar.js` — `createMarkerAR`; `src/replay.js` — `approvedStep`
 
-**Remaining:** AR shows one text plane and stops regular audio on entry. Add an administrative action sequence and explicit approved-audio replay in the AR experience.
+**Remaining:** Exact approved visual steps and local-language speech are integrated with marker and surface AR; Spanish notice remains. Physical device/speaker/pronunciation and actual offline verification remain pending.
 
 **Accept when:** Each visual step represents an approved action; exact matching local-language audio can replay/stop inside AR; unsupported voice retains text; no generated clinical imagery.
 

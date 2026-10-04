@@ -1,9 +1,14 @@
+import { createMarkerAR } from './marker-ar.js';
+import { createScanView } from './scan-view.js';
+import { bindReplayMarker, markerPayload } from './marker-data.js';
+import { markerSVG } from './markers.js';
+import { approvedStep, replaySteps } from './replay.js';
 import { createPackController } from './pack-controller.js';
 import { PACK_BYTES, PACK_MANIFEST } from './model-pack-manifest.js';
 import { patientCopy, patientCopyMarkup, patientCopyHTML, portableStamp, downloadBlob } from './portable-card.js';
 import { createSessionController } from './session.js';
 import { permitted, setPermission } from './consent.js';
-import { currentUnderstanding, saveStamp, patientLines } from './understanding.js';
+import { approvedContentStamp, currentUnderstanding, saveStamp, patientLines } from './understanding.js';
 import { FIELD_LABELS, FIELD_STATES, WORKFLOWS, createHandoff, templateHandoff, editHandoff, changeWorkflow, handoffIssues, handoffText, spanishHandoffSupported, extractionScopeIssue } from './handoff.js';
 import { createVisit, editInstruction, instructionError, selectLanguage, confirmVisit,
   patientInstruction, canShare, setPatientText, confirmPatientText, setReturnTemplate, approvedPlanText, setStructuredHandoff, markUnderstanding, MAX_INSTRUCTION_LENGTH } from './visit.js';
@@ -37,6 +42,8 @@ let rejectedExtractionText = '';
 let reviewMode = 'structured';
 let structuredBackup = null;
 let evidenceKey = null;
+let markerARState={status:'idle',message:'Marker camera is off.',active:false};
+let arStep = null;
 let arOverlay = null;
 let arSnapshot = null;
 let arState = { status: 'idle', message: '', active: false, canPlace: false, placed: false };
@@ -145,7 +152,7 @@ function home() {
     <h1 tabindex="-1">A clear next step.<br>For every patient.</h1><p>Turn the next step you’ve chosen into a simple handoff your patient can take with them.</p>
     ${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}<div class="hero-footnote">${icon('shield')}Your decision. Your review. Their next step.</div></div>
     <div class="hero-art" aria-hidden="true"><div class="art-orbit"></div><div class="art-badge">${icon('check')}Worker confirmed</div><div class="example-card"><div class="card-logo">${icon('bridge')}VISIT BRIDGE</div><span class="card-eyebrow">EXAMPLE HANDOFF</span><h2>Your next step</h2><p>Return to the clinic<br>on Tuesday.</p><div class="card-rule"></div><div class="example-meta">A reminder from your health worker<span>English · Read</span></div></div><div class="art-caption">Small instructions.<br>Meaningful connections.</div></div></section>
-    ${privacyPanel()}<div id="model-transfer">${transferPanel()}</div><section id="home-readiness" class="readiness-panel" aria-label="Device readiness">${readinessPanel()}</section><section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}<div id="install-control"></div></div></section>
+    ${privacyPanel()}<div id="model-transfer">${transferPanel()}</div><section id="home-readiness" class="readiness-panel" aria-label="Device readiness">${readinessPanel()}</section><section class="device-panel"><div><span class="eyebrow">CARE CARDS ON THIS DEVICE</span><h2>Keep the next step close.</h2><p>Save a reviewed card and reopen it here when connectivity drops. Use fictional demo information only.</p></div><div class="device-actions">${button('Open saved cards','saved',true)}${button('Scan care card','scan-card',true)}<div id="install-control"></div></div></section>
     <div class="section-heading"><h2>A handoff in three simple steps</h2><span>Designed around the worker’s decision</span></div>
     <section class="how-grid">${[
       ['01','note','Capture the next step','Type or dictate the instruction you have already chosen for your patient.'],
@@ -153,7 +160,7 @@ function home() {
       ['03','card','Make it easy to remember','Open a simple, readable care card on the device you already use.'],
     ].map(([number, name, title, copy]) => `<article class="how-card"><div class="how-top"><span class="icon-tile">${icon(name)}</span><span class="step-number">${number}</span></div><h3>${title}</h3><p>${copy}</p></article>`).join('')}</section>
     <section class="scope-strip">${icon('shield')}<div><strong>Communication support, with the worker in control.</strong><p>Visit Bridge helps communicate a plan you have already decided. It does not diagnose, prescribe, or choose treatment.</p></div><span class="scope-tag">FOUNDATION DEMO</span></section>
-    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('globe')}Validated patient translations</span><span>${icon('globe')}Additional language packs</span><span>${icon('card')}Marker-scan AR replay</span></div></section>`;
+    <section class="roadmap"><span>Coming in later build phases</span><div><span>${icon('globe')}Validated patient translations</span><span>${icon('globe')}Additional language packs</span><span>${icon('card')}Device and language validation</span></div></section>`;
 }
 
 function progress(active) {
@@ -284,8 +291,8 @@ function render(focus = true) {
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
-function navigate(next) { closePortable();packManager.cancel(); if(next==='review' && reviewMode==='structured' && !visit.handoff) visit=setStructuredHandoff(visit,initialHandoff()); closeAR(); playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; extractionProposal=null; extractionError=''; evidenceKey=null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'review' || (next === 'handoff' && visit.language !== 'es')) model.check(); if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
-function start() { structuredBackup=null; reviewMode='structured'; extractionProposal=null; speech.cancel(); speech.textEdited(); captureMode = 'type'; templateMode = false; templateDate = ''; templateLocation = 'clinic'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
+function navigate(next) { scanView.close();closePortable();packManager.cancel(); if(next==='review' && reviewMode==='structured' && !visit.handoff) visit=setStructuredHandoff(visit,initialHandoff()); closeAR(); playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; extractionProposal=null; extractionError=''; evidenceKey=null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'review' || (next === 'handoff' && visit.language !== 'es')) model.check(); if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
+function start() { scanView.close();structuredBackup=null; reviewMode='structured'; extractionProposal=null; speech.cancel(); speech.textEdited(); captureMode = 'type'; templateMode = false; templateDate = ''; templateLocation = 'clinic'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
   if (!vaultUnlocked) return;
@@ -323,6 +330,7 @@ root.addEventListener('click', event => {
   if(action==='vault-erase-cancel') { eraseOpen=false; render(false); return; }
   if (!vaultUnlocked || vaultBusy) return;
   if(action==='portable-card')openPortable();
+  if(action==='scan-card'){closePortable();closeAR();playback.stop();speech.clear();model.cancel();scanView.open();}
   if(action==='choose-model-pack'){root.querySelector('#model-pack-file')?.click();return;}
   if(action==='export-model-pack'){model.cancel();packManager.export();return;}
   if(action==='cancel-transfer'){packManager.cancel();model.check();return;}
@@ -414,7 +422,7 @@ document.addEventListener('keydown', event => {
   }
 });
 function saved() {
-  return `<div class="flow-title"><span class="eyebrow">ON THIS DEVICE</span><h1 tabindex="-1" id="page-heading">Saved care cards</h1><p>Approved copies saved in this browser. They are available offline on this device.</p></div><div class="storage-notice">${icon('shield')}<p>Use fictional information only. Saved contents are encrypted in this device vault and visible while unlocked. Lock after use. Browser storage can be cleared or removed; these cards have no cloud backup.</p></div>${storageError ? `<div class="error" role="alert">${escape(storageError)} ${button('Try again','saved',true)}</div>` : ''}${cardsLoading ? '<p role="status">Loading saved cards…</p>' : !cards.length && !storageError ? `<section class="empty-state">${icon('card')}<h2>No saved cards yet.</h2><p>Prepare a handoff, then choose “Save on this device.”</p>${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}</section>` : `<div class="saved-grid">${cards.map(card => `<article class="saved-item"><span class="confirmed-tag">${icon('check')}Approved copy · ${card.language === "es" ? "Español · unvalidated demo" : "English"}</span><p>${escape(card.instruction.slice(0, 140))}${card.instruction.length > 140 ? '…' : ''}</p><small>Saved ${escape(dateLabel(card.savedAt))}<br>Understanding: ${escape(currentUnderstanding(card)?.result === "needs-follow-up" ? "Needs follow-up" : currentUnderstanding(card)?.result === "understood" ? "Understood · worker observed" : currentUnderstanding(card)?.result === "clarified" ? "Clarified · not confirmed" : "Not recorded")}</small><div class="saved-item-actions">${`<button class="button secondary" data-action="open-card" data-card-id="${escape(card.id)}">Open card</button><button class="text-button danger" data-action="request-delete" data-card-id="${escape(card.id)}" aria-label="Delete card saved ${escape(dateLabel(card.savedAt))}">Delete</button>`}</div></article>`).join('')}</div>`}`;
+  return `<div class="flow-title"><span class="eyebrow">ON THIS DEVICE</span><h1 tabindex="-1" id="page-heading">Saved care cards</h1><p>Approved copies saved in this browser. They are available offline on this device.</p>${button('Scan care card','scan-card',true)}</div><div class="storage-notice">${icon('shield')}<p>Use fictional information only. Saved contents are encrypted in this device vault and visible while unlocked. Lock after use. Browser storage can be cleared or removed; these cards have no cloud backup.</p></div>${storageError ? `<div class="error" role="alert">${escape(storageError)} ${button('Try again','saved',true)}</div>` : ''}${cardsLoading ? '<p role="status">Loading saved cards…</p>' : !cards.length && !storageError ? `<section class="empty-state">${icon('card')}<h2>No saved cards yet.</h2><p>Prepare a handoff, then choose “Save on this device.”</p>${button(visit ? 'Continue current visit' : 'Start a visit', visit ? 'resume' : 'start')}</section>` : `<div class="saved-grid">${cards.map(card => `<article class="saved-item"><span class="confirmed-tag">${icon('check')}Approved copy · ${card.language === "es" ? "Español · unvalidated demo" : "English"}</span><p>${escape(card.instruction.slice(0, 140))}${card.instruction.length > 140 ? '…' : ''}</p><small>Saved ${escape(dateLabel(card.savedAt))}<br>Understanding: ${escape(currentUnderstanding(card)?.result === "needs-follow-up" ? "Needs follow-up" : currentUnderstanding(card)?.result === "understood" ? "Understood · worker observed" : currentUnderstanding(card)?.result === "clarified" ? "Clarified · not confirmed" : "Not recorded")}</small><div class="saved-item-actions">${`<button class="button secondary" data-action="open-card" data-card-id="${escape(card.id)}">Open card</button><button class="text-button danger" data-action="request-delete" data-card-id="${escape(card.id)}" aria-label="Delete card saved ${escape(dateLabel(card.savedAt))}">Delete</button>`}</div></article>`).join('')}</div>`}`;
 }
 
 function savedCard() {
@@ -446,6 +454,7 @@ async function saveCurrentCard() {
     const card = await saveApprovedCard(snapshot, cardRepository);
     if(token!==sessionGeneration)return;
     cards = [card, ...cards.filter(existing => existing.id !== card.id)];
+    channel?.postMessage({type:'card-changed',id:card.id});
     if (visit?.id === snapshot.id && saveStamp(visit) === saveStamp(snapshot)) savedRevision = saveStamp(snapshot);
   } catch { if(token!==sessionGeneration)return; saveError = 'This card was not saved. Device storage may be unavailable or full. Keep the card open and try again.'; }
   finally { if(token===sessionGeneration) { saving = false; render(false); } }
@@ -456,7 +465,7 @@ async function deleteCard() {
   const token=sessionGeneration, id = deleteId;
   deleting = true; error = ''; render(false);
   try {
-    await cardRepository.remove(id);
+    await cardRepository.remove(id);channel?.postMessage({type:'card-changed',id});
     if(token!==sessionGeneration)return;
     cards = cards.filter(card => card.id !== id);
     if (visit?.id === id) savedRevision = null;
@@ -545,17 +554,17 @@ const model = createModelController({ onState: state => { modelState = state; up
   render(false);
 } });
 
-function openAR() {
+function openAR(cardOverride=null,initialStep=null) {
   if(!vaultUnlocked)return;
-  const card = screen === 'complete' && visit && canShare(visit) ? cardFromVisit(visit) : screen === 'savedCard' && isValidCard(selectedCard) ? selectedCard : null;
-  if (!card || arOverlay) return; closePortable();
-  playback.stop(); speech.cancel(); model.cancel(); arSnapshot = structuredClone(card);
+  const card = cardOverride || currentApprovedCard();
+  if (!isValidCard(card) || arOverlay) return; closePortable();
+  playback.stop(); speech.cancel(); model.cancel(); arSnapshot = structuredClone(card);arStep=initialStep;
   const es=card.language==='es';
   arOverlay=document.createElement('section'); arOverlay.className='ar-dialog'; arOverlay.setAttribute('role','dialog');arOverlay.setAttribute('aria-modal','true');arOverlay.setAttribute('aria-labelledby','ar-heading');arOverlay.lang=card.language;
-  arOverlay.innerHTML=`<header class="ar-header"><div><span class="eyebrow">VISIT BRIDGE · ${es?'REALIDAD AUMENTADA':'SPATIAL AR'}</span><h2 id="ar-heading">${es?'Su próximo paso, a la vista':'Keep your next step in view'}</h2></div><button type="button" class="button secondary" data-ar-action="lock">${es?"Bloquear":"Lock now"}</button><button type="button" class="button secondary" data-ar-action="exit">${es?'Volver a la tarjeta':'Back to card'}</button></header><div class="ar-intro"><p>${es?'Al iniciar, su navegador solicitará acceso a su entorno. La cámara se usa para colocar esta tarjeta. Visit Bridge no graba, guarda ni envía imágenes.':'Start AR asks your browser for access to your surroundings. The camera is used to place this card. Visit Bridge does not record, save or send images.'}</p><p>${es?'Use información ficticia. La tarjeta normal sigue disponible.':'Use fictional information. The regular card remains available.'}</p></div><article class="ar-preview">${es?`<p class="translation-notice">${escape(card.translation.pack.labels.demoNotice)}</p>`:''}<span class="eyebrow">${es?'TEXTO APROBADO':'APPROVED CARD TEXT'}</span><p>${escape(card.instruction)}</p></article><footer class="ar-footer"><p id="ar-status" role="status" aria-live="polite"></p><div id="ar-actions"></div><small>${es?'Mueva el teléfono lentamente. Coloque la tarjeta en una superficie despejada.':'Move slowly. Place the card on a clear surface. Surface tracking needs a compatible device.'}</small></footer>`;
+  arOverlay.innerHTML=`<header class="ar-header"><div><span class="eyebrow">VISIT BRIDGE · ${es?'REALIDAD AUMENTADA':'SPATIAL AR'}</span><h2 id="ar-heading">${es?'Su próximo paso, a la vista':'Keep your next step in view'}</h2></div><button type="button" class="button secondary" data-ar-action="lock">${es?"Bloquear":"Lock now"}</button><button type="button" class="button secondary" data-ar-action="exit">${es?'Volver a la tarjeta':'Back to card'}</button></header><div class="ar-intro"><p>${es?'Al iniciar, su navegador solicitará acceso a su entorno. La cámara se usa para colocar esta tarjeta. Visit Bridge no graba, guarda ni envía imágenes.':'Start AR asks your browser for access to your surroundings. The camera is used to place this card. Visit Bridge does not record, save or send images.'}</p><p>${es?'Use información ficticia. La tarjeta normal sigue disponible.':'Use fictional information. The regular card remains available.'}</p></div><details class="ar-approved-details"><summary>${es?'Ver todas las palabras aprobadas':'Review all approved wording'}</summary><article class="ar-preview">${es?`<p class="translation-notice">${escape(card.translation.pack.labels.demoNotice)}</p>`:''}<span class="eyebrow">${es?'TEXTO APROBADO':'APPROVED CARD TEXT'}</span><p>${escape(card.instruction)}</p></article></details><section class="marker-mode"><h3>${es?'Repetición con marcador en cámara':'Camera marker replay'}</h3><p>${es?'La cámara sigue el marcador impreso de esta tarjeta. No necesita colocar una superficie en RA espacial. Mantenga el marcador visible.':'The camera follows this saved card’s printed marker. Keep the whole marker visible; the overlay follows the camera image and is not a persistent world-space anchor.'}</p><div id="marker-ar-actions"></div><p id="marker-ar-status" role="status"></p><div id="marker-camera-stage" class="marker-camera-stage" hidden><video muted playsinline aria-label="Marker replay camera"></video><article class="marker-plane" hidden aria-hidden="true"><strong class="marker-plane-title"></strong><p class="marker-plane-text"></p><small class="marker-plane-notice"></small></article></div></section><section class="ar-replay" id="ar-replay"></section><footer class="ar-footer"><p id="ar-status" role="status" aria-live="polite"></p><div id="ar-actions"></div><small>${es?'Mueva el teléfono lentamente. Coloque la tarjeta en una superficie despejada.':'Move slowly. Place the card on a clear surface. Surface tracking needs a compatible device.'}</small></footer>`;
   arOverlay.addEventListener('beforexrselect',event=>{if(event.target.closest?.('button'))event.preventDefault();});
-  arOverlay.addEventListener('click',event=>{const action=event.target.closest('[data-ar-action]')?.dataset.arAction;if(!action)return;event.preventDefault(); if(action==='lock'){session.lock();return;}if(action==='exit')closeAR();if(action==='start')ar.start(arSnapshot,arOverlay);if(action==='place')ar.place();if(action==='reposition')ar.reposition();if(action==='larger')ar.resize(.1);if(action==='smaller')ar.resize(-.1);if(action==='rotate')ar.rotate(Math.PI/12);if(action==='retry')ar.check();});
-  document.body.append(arOverlay);root.inert=true;updateAR();arOverlay.querySelector('[data-ar-action="exit"]').focus();ar.check();
+  arOverlay.addEventListener('click',async event=>{const action=event.target.closest('[data-ar-action]')?.dataset.arAction;if(!action)return;event.preventDefault(); if(action==='lock'){session.lock();return;}if(action==='exit'){closeAR();return;}if(!vaultUnlocked||!isValidCard(arSnapshot))return;if(action==='start'){markerAR.stop();playback.stop();ar.start(arSnapshot,arOverlay,arStep);}if(action==='place')ar.place();if(action==='reposition')ar.reposition();if(action==='larger')ar.resize(.1);if(action==='smaller')ar.resize(-.1);if(action==='rotate')ar.rotate(Math.PI/12);if(action==='retry')ar.check();if(action==='start-marker'){const view=arOverlay,snapshot=arSnapshot,index=arStep;await ar.stop();if(view!==arOverlay||snapshot!==arSnapshot||!vaultUnlocked)return;markerAR.start(snapshot,view.querySelector('#marker-camera-stage'),index);}if(action==='stop-marker')markerAR.stop();if(action==='previous-step')changeReplayStep(Math.max(0,(arStep??0)-1));if(action==='next-step')changeReplayStep(Math.min(replaySteps(arSnapshot).length-1,(arStep??0)+1));if(action==='steps')changeReplayStep(0);if(action==='full-card')changeReplayStep(null);if(action==='read-step')playback.play(arSnapshot,arStep);if(action==='stop-audio')playback.stop();});
+  document.body.append(arOverlay);root.inert=true;updateAR();updateReplay();updateMarkerAR();playback.check(card.language);arOverlay.querySelector('[data-ar-action="exit"]').focus();ar.check();
 }
 function updateAR() {
   if(!arOverlay)return;
@@ -570,17 +579,51 @@ function updateAR() {
 }
 function closeAR() {
   if(!arOverlay)return;
-  ar.stop();arOverlay.remove();arOverlay=null;arSnapshot=null;root.inert=false;root.querySelector('[data-action="view-ar"]')?.focus();
+  markerAR.stop();playback.stop();ar.stop();arOverlay.remove();arOverlay=null;arSnapshot=null;arStep=null;root.inert=false;root.querySelector('[data-action="view-ar"]')?.focus();
 }
 
-const ar = createARController({ onState: state => { arState=state; updateAR(); } });
-const playback = createPlaybackController({ onState: state => { playbackState = state; updatePlaybackControls(); } });
-function portableControls() { return `<section class="portable-entry"><h2>A copy to take with you</h2><p>Print this approved card or download a readable offline file. A file or paper copy is outside the encrypted vault.</p><button class="button secondary" data-action="portable-card">Print or download patient card</button></section>`; }
-function currentApprovedCard() { return screen==='complete' && visit && canShare(visit)?cardFromVisit(visit):screen==='savedCard' && isValidCard(selectedCard)?selectedCard:null; }
-function closePortable() { printStage?.remove();printStage=null;if(portableOverlay){portableOverlay.remove();portableOverlay=null;}portableSnapshot=null;portableExpected=null;portableConfirmed=false;root.inert=false; }
-function openPortable() {
-  const card=currentApprovedCard();if(!vaultUnlocked||!card)return;
+function changeReplayStep(index) {
+  if(!vaultUnlocked||!isValidCard(arSnapshot))return;
+  if(index!==null)approvedStep(arSnapshot,index);
+  playback.stop();arStep=index;ar.setStep(index);markerAR.setStep(index);updateReplay();
+}
+function updateReplay() {
+  if(!arOverlay||!arSnapshot)return;
+  const panel=arOverlay.querySelector('#ar-replay'),es=arSnapshot.language==='es',steps=replaySteps(arSnapshot);
+  const text=arStep===null?arSnapshot.instruction:approvedStep(arSnapshot,arStep).text;
+  const focused=panel.contains(document.activeElement)?document.activeElement.dataset.arAction:null;
+  const b=(label,action,disabled=false)=>`<button type="button" class="button secondary" data-ar-action="${action}" ${disabled?'disabled':''}>${label}</button>`;
+  panel.innerHTML=`<h3>${arStep===null?(es?'Tarjeta completa':'Full approved card'):`${es?'Paso':'Step'} ${arStep+1} / ${steps.length}`}</h3>${arStep===null?'':`<span class="replay-symbol" aria-hidden="true">${icon(approvedStep(arSnapshot,arStep).symbol)}</span>`}<p class="replay-step-text" lang="${arSnapshot.language}">${escape(text)}</p>${es?`<p class="translation-notice">${escape(arSnapshot.translation.pack.labels.demoNotice)}</p>`:''}<div class="form-actions">${arStep===null?b(es?'Mostrar pasos':'Show steps','steps'):b(es?'Anterior':'Previous','previous-step',arStep===0)+b(es?'Siguiente':'Next','next-step',arStep===steps.length-1)+b(es?'Tarjeta completa':'Full card','full-card')}${b(es?'Leer en voz alta':'Read approved words aloud','read-step',!playbackState.available)}${b(es?'Detener audio':'Stop audio','stop-audio',!playback.isBusy())}</div><p role="status">${escape(playbackState.message)}</p><small>${es?'Cada paso conserva las palabras aprobadas. La lectura usa una voz local en español cuando está disponible.':'Each step keeps the approved words. Read aloud uses a matching local device voice when available.'}</small>`;
+  if(focused)panel.querySelector(`[data-ar-action="${focused}"]:not(:disabled)`)?.focus();
+}
+function updateMarkerAR() {
+  if(!arOverlay||!arSnapshot)return;
+  const es=arSnapshot.language==='es',available=Boolean(markerPayload(arSnapshot)),controls=arOverlay.querySelector('#marker-ar-actions');
+  controls.innerHTML=`<button class="button secondary" data-ar-action="start-marker" ${!available||markerARState.active?'disabled':''}>${es?'Iniciar cámara con marcador':'Start marker camera'}</button><button class="button secondary" data-ar-action="stop-marker" ${!markerARState.active?'disabled':''}>${es?'Detener cámara':'Stop marker camera'}</button>`;
+  arOverlay.querySelector('#marker-ar-status').textContent=available?markerARState.message:(es?'Guarde esta tarjeta aprobada para crear su marcador de repetición.':'Save this approved card to create its replay marker.');
+}
+const markerAR=createMarkerAR({onState:state=>{markerARState=state;updateMarkerAR();if(arOverlay&&['searching','idle','error','unavailable'].includes(state.status))playback.stop();}});
+const ar = createARController({ onState: state => { arState=state; updateAR(); if(arOverlay&&['idle','error','tracking'].includes(state.status))playback.stop(); } });
+const playback = createPlaybackController({ onState: state => { playbackState = state; updatePlaybackControls(); updateReplay(); } });
+const scanView=createScanView({root,repository:cardRepository,isUnlocked:()=>vaultUnlocked,
+  onLock:()=>session.lock(),onClose:()=>root.querySelector('[data-action="scan-card"]')?.focus(),
+  onOpen:card=>{selectedCard=card;navigate('savedCard');openAR(card,0);}});
+function portableControls() { return `<section class="portable-entry"><h2>A copy to take with you</h2><p>Print this approved card or download a readable offline file. Saved cards can include a replay marker for this device. A file or paper copy is outside the encrypted vault.</p><button class="button secondary" data-action="portable-card">Print or download patient card</button></section>`; }
+function currentApprovedCard() {
+  if(screen==='savedCard'&&isValidCard(selectedCard))return selectedCard;
+  if(screen==='complete'&&visit&&canShare(visit)){const raw=cardFromVisit(visit);return cards.find(card=>card.id===raw.id&&approvedContentStamp(card)===approvedContentStamp(raw))||raw;}return null;
+}
+function closePortable() { const wasOpen=Boolean(portableOverlay);printStage?.remove();printStage=null;if(portableOverlay){portableOverlay.remove();portableOverlay=null;}portableSnapshot=null;portableExpected=null;portableConfirmed=false;if(wasOpen)root.inert=false; }
+async function openPortable() {
+  let card=currentApprovedCard();if(!vaultUnlocked||!card)return;
   closeAR();playback.stop();speech.clear();model.cancel();closePortable();
+  const token=sessionGeneration, saved=cards.find(c=>c.id===card.id&&approvedContentStamp(c)===approvedContentStamp(card));
+  if(saved&&!markerPayload(card)&&card.schemaVersion>=6&&permitted(card,'storage')){
+    try{const latest=(await cardRepository.list()).find(c=>c.id===card.id);if(token!==sessionGeneration||!vaultUnlocked)return;
+      if(latest&&approvedContentStamp(latest)===approvedContentStamp(card)){const bound=bindReplayMarker(latest);await cardRepository.save(bound);if(token!==sessionGeneration||!vaultUnlocked)return;card=bound;cards=cards.map(c=>c.id===bound.id?bound:c);if(screen==='savedCard')selectedCard=bound;channel?.postMessage({type:'card-changed',id:bound.id});}}
+    catch{/* A readable copy remains possible without a persisted replay marker. */}
+  }
+  if(token!==sessionGeneration||!vaultUnlocked||!currentApprovedCard()||portableStamp(currentApprovedCard())!==portableStamp(card))return;
   portableSnapshot=structuredClone(card);portableExpected=portableStamp(card);
   portableOverlay=document.createElement('section');portableOverlay.className='portable-dialog';portableOverlay.setAttribute('role','dialog');portableOverlay.setAttribute('aria-modal','true');portableOverlay.setAttribute('aria-labelledby','portable-heading');
   portableOverlay.innerHTML=`<div class="portable-dialog-content"><header class="portable-toolbar"><h2 id="portable-heading">Patient copy · approved wording</h2><button type="button" class="button secondary" data-portable-action="close">Back to card</button></header>${patientCopyMarkup(patientCopy(portableSnapshot))}<section class="portable-actions"><p>Printing or downloading creates an unencrypted copy outside this vault. Locking or deleting the saved card cannot remove that copy. Use fictional information only.</p><label class="check-label"><input id="portable-confirm" type="checkbox"><span>I intend to create this separate patient copy and understand it is outside the vault.</span></label><div class="form-actions"><button type="button" class="button primary" data-portable-action="print" disabled>Print patient card / Save as PDF</button><button type="button" class="button secondary" data-portable-action="download" disabled>Download offline patient card</button></div><p id="portable-status" role="status" aria-live="polite">Print uses your browser’s dialog. Download creates a standalone .html file without scripts or external resources.</p></section></div>`;
@@ -608,7 +651,7 @@ const packManager=createPackController({
   onExport:blob=>{if(vaultUnlocked){const url=downloadBlob(blob,'visit-bridge-smollm2-q4-v1.vbmodel');exportedURLs.add(url);}},
   onInstalled:()=>model.check()
 });
-function stopSensitiveMedia() { closePortable();for(const url of exportedURLs)URL.revokeObjectURL(url);exportedURLs.clear();packManager.cancel(); closeAR(); playback.stop(); speech.clear(); model.cancel(); }
+function stopSensitiveMedia() { scanView.close();closePortable();for(const url of exportedURLs)URL.revokeObjectURL(url);exportedURLs.clear();packManager.cancel(); closeAR(); playback.stop(); speech.clear(); model.cancel(); }
 const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('visit-bridge-vault') : null;
 let remoteLock = false;
 function clearSession(reason) {
@@ -621,7 +664,7 @@ function clearSession(reason) {
   render(); inspectVault(); if(!remoteLock) channel?.postMessage({type:'lock'});
 }
 const session = createSessionController({onLock:clearSession,stopMedia:stopSensitiveMedia});
-channel?.addEventListener('message',event=>{ if(event.data?.type==='lock') { remoteLock=true; session.lock('Locked by another Visit Bridge tab. Unlock to continue.'); remoteLock=false; } });
+channel?.addEventListener('message',event=>{ if(event.data?.type==='card-changed'&&vaultUnlocked){closePortable();scanView.close();closeAR();playback.stop();selectedCard=null;if(screen==='savedCard')screen='saved';refreshCards();render(false);} if(event.data?.type==='lock') { remoteLock=true; session.lock('Locked by another Visit Bridge tab. Unlock to continue.'); remoteLock=false; } });
 async function inspectVault() {
   const token=sessionGeneration;
   try { const state=await cardRepository.inspect(); if(token!==sessionGeneration)return; vaultConfigured=state.configured; legacyPresent=state.legacy; vaultReady=true; }

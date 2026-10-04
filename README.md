@@ -212,3 +212,12 @@ Home now supports verified public model-pack import/export, connected installati
 See `docs/portable-cards-and-packs.md` for format, transfer steps, storage costs, tests and limitations. All 76 tests pass. Actual export/import and imported-model inference worked with the receiving application server stopped; this does not establish airplane-mode behavior on the target phone. Patient HTML download and print-dialog cancellation were verified; physical paper/PDF output remains unverified.
 
 Next checkpoint: original marker-scan AR replay, approved action sequence and explicit local-language audio inside AR. The full original schematic is retained.
+
+
+## Marker scan and approved AR replay checkpoint
+
+Approved saved cards now carry a private-vault-bound opaque QR reference on their patient copy. Explicit camera scanning or printed-reference entry finds the matching local approved snapshot, followed by worker confirmation. Replay shows exact approved steps with action symbols and local-language read-aloud controls. Camera marker AR projects the selected instruction over the expected marker; existing surface-placement WebXR AR remains available separately.
+
+All 89 automated tests and module checks pass. The final cached interface and Spanish reference lookup reopened with the application server stopped. Physical camera/printed-marker tracking, actual airplane mode, iPhone Safari and speaker/pronunciation checks remain pending. See docs/marker-replay.md for implementation and limits.
+
+Next checkpoint: full device/offline/localization validation, targeting the user's iPhone with Safari. Establish reachable HTTPS hosting first if needed for its camera checks; retain all original schematic requirements and distinguish software checks from hardware/human evidence.

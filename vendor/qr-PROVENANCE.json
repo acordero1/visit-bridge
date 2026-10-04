@@ -1,0 +1,28 @@
+{
+  "packages": [
+    {
+      "package": "qrcode-generator",
+      "version": "1.4.4",
+      "source": "https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-1.4.4.tgz",
+      "tarballIntegrity": "sha512-HM7yY8O2ilqhmULxGMpcHSF1EhJJ9yBj8gvDEuZ6M+KGJ0YY2hKpnXvRD+hZPLrDVck3ExIGhmPtSdcjC+guuw==",
+      "sourceFile": "qrcode.js",
+      "sourceSha256": "18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780",
+      "licenseFile": "qrcode-generator-LICENSE.txt",
+      "localFile": "qr-encode.js",
+      "licenseSource": "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/9bd2163ddc1628d1ec8ff22ea288a747275ef442/LICENSE",
+      "localSha256": "0ac00938964f87a65e7c0fade22c80298f74c8ce53b4ae0e8fc0018a0d2ff836"
+    },
+    {
+      "package": "jsqr",
+      "version": "1.4.0",
+      "source": "https://registry.npmjs.org/jsqr/-/jsqr-1.4.0.tgz",
+      "tarballIntegrity": "sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==",
+      "sourceFile": "dist/jsQR.js",
+      "sourceSha256": "bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859",
+      "licenseFile": "jsqr-LICENSE.txt",
+      "localFile": "qr-decode.js",
+      "localSha256": "e32c38c2022cb03b33081db0c2dbd9dc87d6240813068096baabc9e4302603bc"
+    }
+  ],
+  "adaptation": "QR generator adds an ESM export. Decoder routes the UMD export into a private object and adds an ESM export. No CDN or global export is used."
+}

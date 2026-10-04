@@ -1,3 +1,4 @@
+import { approvedStep } from './replay.js';
 import { isValidCard } from './cards.js';
 
 const BUSY = new Set(['starting', 'speaking', 'pausing', 'paused', 'resuming']);
@@ -50,7 +51,7 @@ export function createPlaybackController({ environment = globalThis, onState,
   function arm(session, duration, message) {
     clearTimer(); timer = schedule(() => { if (active === session) fail(message); }, duration);
   }
-  function play(card) {
+  function play(card, stepIndex = null) {
     release(); clearDiscovery();
     if (!isValidCard(card) || !['en','es'].includes(card.language)) { emit('error', 'Open an approved care card before reading aloud.'); return; }
     requestedLanguage = card.language;
@@ -58,19 +59,20 @@ export function createPlaybackController({ environment = globalThis, onState,
     try { voice = choose(voices()); } catch { /* Refuse unavailable voices. */ }
     if (!voice) { emit('unavailable', `No local ${requestedLanguage === 'es' ? 'Spanish' : 'English'} voice is available. The written card is still here.`, { available: false, voiceName: '' }); return; }
     try {
-      const utterance = new Utterance(card.instruction);
+      const text = stepIndex === null ? card.instruction : approvedStep(card,stepIndex).text;
+      const utterance = new Utterance(text);
       const session = { utterance, voice };
       active = session;
       utterance.voice = voice; utterance.lang = voice.lang; utterance.rate = 0.9; utterance.pitch = 1; utterance.volume = 1;
       utterance.onstart = () => {
         if (active !== session) return;
-        emit('speaking', 'Reading the approved words shown on this card.');
+        emit('speaking', stepIndex===null?'Reading the approved words shown on this card.':'Reading the exact approved words for this step.');
         arm(session, 180000, 'Playback took too long and was stopped. You can read the card together.');
       };
       utterance.onend = () => { if (active !== session) return; active = null; clearTimer(); emit('ended', 'Finished reading. You can listen again.'); };
       utterance.onerror = () => { if (active === session) fail('Read aloud could not finish. The written card is still here. Try again or read it together.'); };
       utterance.onpause = () => { if (active !== session) return; clearTimer(); emit('paused', 'Reading paused. Resume or stop when you are ready.'); };
-      utterance.onresume = () => { if (active !== session) return; emit('speaking', 'Reading the approved words shown on this card.'); arm(session, 180000, 'Playback took too long and was stopped.'); };
+      utterance.onresume = () => { if (active !== session) return; emit('speaking', stepIndex===null?'Reading the approved words shown on this card.':'Reading the exact approved words for this step.'); arm(session, 180000, 'Playback took too long and was stopped.'); };
       emit('starting', 'Starting read aloud…', { available: true, voiceName: voice.name });
       arm(session, 10000, 'Read aloud did not start. Tap Read aloud to try again, or read the card together.');
       if (engine.paused && typeof engine.resume === 'function') engine.resume();

@@ -6,11 +6,11 @@ import {cardFromVisit} from '../src/cards.js';
 import {createVisit,editInstruction,confirmVisit,selectLanguage,confirmPatientText} from '../src/visit.js';
 const approved=()=>cardFromVisit(confirmPatientText(selectLanguage(confirmVisit(editInstruction(createVisit(),'Return to the clinic on Tuesday.'),true),'en'),true));
 function fixture(){let frame,hit=true,tracking=true,ended=0,cancelled=0,disposed=0,rendered=null,requested=0,options;
- const events={},states=[],draws=[];
+ const events={},states=[],draws=[],steps=[];
  const session={addEventListener:(name,f)=>events[name]=f,requestReferenceSpace:async kind=>({kind}),requestHitTestSource:async()=>({cancel:()=>cancelled++}),requestAnimationFrame:f=>frame=f,end:async()=>{ended++;events.end?.();}};
  const environment={isSecureContext:true,navigator:{xr:{isSessionSupported:async()=>true,requestSession:async(mode,init)=>{requested++;options=init;assert.equal(mode,'immersive-ar');return session;}}}};
- const controller=createARController({environment,onState:s=>states.push(s),rendererFactory:(_,card)=>{rendered=card;return{draw:(...args)=>draws.push(args),dispose:()=>disposed++};}});
- return {controller,session,events,states,draws,environment,counts:()=>({ended,cancelled,disposed,requested}),options:()=>options,rendered:()=>rendered,
+ const controller=createARController({environment,onState:s=>states.push(s),rendererFactory:(_,card)=>{rendered=card;return{setStep:index=>steps.push(index),draw:(...args)=>draws.push(args),dispose:()=>disposed++};}});
+ return {controller,session,events,states,draws,steps,environment,counts:()=>({ended,cancelled,disposed,requested}),options:()=>options,rendered:()=>rendered,
  tick(){const callback=frame;frame=null;callback(0,{getViewerPose:()=>tracking?{transform:{position:{x:0,y:1,z:1}},views:[]}:null,getHitTestResults:()=>hit?[{getPose:()=>({transform:{position:{x:0,y:0,z:-1}}})}]:[]});},setHit:v=>hit=v,setTracking:v=>tracking=v};
 }
 test('AR discovery never opens camera; only an independently validated snapshot starts a session',async()=>{
@@ -40,4 +40,9 @@ test('AR text wrapping retains long words and placement uses the selected world 
  assert.deepEqual(cardLines(ctx,'Return\nBring the appointment slip',100),['Return','Bring the appointment slip']);
  assert.equal(cardLines(ctx,text,20).join(' '),text);assert.equal(cardLines(ctx,'abcdefghij',3).join(''),'abcdefghij');
  const m=placementMatrix([2,0,-3],0);assert.equal(m[12],2);assert.equal(m[14],-3);assert.ok(m[13]>.4);assert.equal(m[15],1);
+});
+
+test('AR replay passes an approved step to the renderer, restores full card and refuses invalid step selection',async()=>{
+ const f=fixture();await f.controller.start(approved(),{},0);assert.deepEqual(f.steps,[0]);f.controller.setStep(null);assert.deepEqual(f.steps,[0,null]);f.controller.setStep(50);assert.equal(f.controller.isActive(),false);assert.equal(f.states.at(-1).status,'error');
+ const invalid=fixture();await invalid.controller.start(approved(),{},50);assert.equal(invalid.counts().requested,0);
 });
