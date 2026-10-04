@@ -1,17 +1,17 @@
 # Visit Bridge feature audit
 
-Assessment baseline: Git commit `d189990`, 2026-10-04.
+Assessment baseline: Git commit `5629fa4`, 2026-10-04.
 
 The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.
 
-Code inspection and previously recorded checks. Evidence anchors prove traceability, not clinical validation or hardware operation. No coverage percentage or probability of winning is calculated.
+Baseline 5629fa4 plus structured-handoff checkpoint source inspection, 50 automated checks and recorded browser observations; see docs/structured-handoff.md. Source traceability is not clinical or target-device validation.
 
 ## Coverage summary
 
-- **partial:** 13
-- **implemented:** 10
-- **needs-validation:** 5
-- **missing:** 16
+- **partial:** 11
+- **implemented:** 12
+- **needs-validation:** 6
+- **missing:** 15
 - **future:** 1
 
 These are requirement counts with unequal scope, not a completion percentage. A source-section mapping is traceability, not proof of perfect semantic completeness.
@@ -23,8 +23,8 @@ The archived full schematic and timeline remain the authoritative feature refere
 The seven implemented checkpoints are not the original 13-part timeline. The original timeline is archived, not replaced. The following checkpoints resume development by closing its specific gaps. The user's later instructions retain every schematic feature, including AR. No prior 'cut it if time gets tight' wording authorizes dropping features now.
 
 1. **Context and device decisions, alongside development.** Record the chosen frontline role, target setting, real existing device, browser and Spanish-language relevance. Obtain fluent/professional/community review when available. The software cannot manufacture human review, clinic access, or hardware measurements. Keep each pending item visible. The earlier phone question remains unanswered; do not assume a compatible AR phone.
-2. **Next coding checkpoint: structured administrative handoff and explicit uncertainty.** Add action/date/time/place/item/task and optional separately labeled patient-reported information. Preserve the source and span provenance. Use unknown/ambiguous states; never infer a date or referral decision. Add constrained local-model extraction and validated output schemas, with a complete typed baseline. Put source, fields and model draft side by side. Keep clinical content outside supported model transformation. Changes revoke approval and future understanding results. Validate no new facts, uncertain date, missing required fields, optional blanks and rejected output. Do not collect patient concerns merely because a field exists.
-3. **Patient-understanding checkpoint.** Add one approved action per line, simple action-specific symbols and a worker-facing teach-back prompt. Record understood, clarified or needs-follow-up against the exact approved revision. Let the worker replay/clarify without automatic patient scoring. Add Home pack readiness and explicit input language. Save/reopen understanding status with the card. Do not equate marking understood with proven medical comprehension.
+2. **Structured administrative handoff and explicit uncertainty — implementation checkpoint completed; field-model/device validation tracked separately.** Add action/date/time/place/item/task and optional separately labeled patient-reported information. Preserve the source and span provenance. Use unknown/ambiguous states; never infer a date or referral decision. Add constrained local-model extraction and validated output schemas, with a complete typed baseline. Put source, fields and model draft side by side. Keep clinical content outside supported model transformation. Changes revoke approval and future understanding results. Validate no new facts, uncertain date, missing required fields, optional blanks and rejected output. Do not collect patient concerns merely because a field exists.
+3. **Next coding checkpoint: patient understanding.** Add one approved action per line, simple action-specific symbols and a worker-facing teach-back prompt. Record understood, clarified or needs-follow-up against the exact approved revision. Let the worker replay/clarify without automatic patient scoring. Add Home pack readiness and explicit input language. Save/reopen understanding status with the card. Do not equate marking understood with proven medical comprehension.
 4. **Encrypted vault and privacy checkpoint.** Add authenticated encrypted local payloads, protected key handling, explicit lock/unlock, inactivity timeout and active-session cancellation on lock. Specify encounter recording/save consent and lost/shared-device behavior. Plan safe legacy-record migration, recovery/reset limits and deletion without silently losing saved cards. Current plaintext storage remains clearly disclosed until migration actually happens; no production-health-data safety claim.
 5. **Portable patient card and installation checkpoint.** Implement approved-only printing/download with source date/place, language and validation notice preserved. The patient can leave with an understandable paper artifact without owning a phone. Add a local verified model-pack import/export path and explicit weak-connection/side-loading instructions. Report the actual roughly 207 MB download, not a fictitious tiny mobile footprint. Preserve content/version approval guards and do not export raw audio or identifiers.
 6. **Original marker-scan AR replay checkpoint.** Add the original printed/on-screen visual marker and offline lookup of the correct approved card. Unknown or stale markers must not select a different card. Show the approved action sequence and explicit local-language audio replay inside AR. Keep existing surface-placement AR as an additional mode. Validate on the actual phone; unsupported capabilities retain plain text/audio. Test scanning/replay offline and compare with the plain-card experience before claiming benefit.
@@ -70,9 +70,9 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Status:** implemented · **Phase:** maintain · **Original schematic:** 7, 8, 9 · **Original timeline:** 2, 4
 
-**Evidence:** `src/app.js` — `function capture`; `src/templates.js` — `validTemplate`
+**Evidence:** `src/handoff.js` — `createHandoff`; `src/app.js` — `structuredField`; `docs/structured-handoff.md` — `Verification`
 
-**Remaining:** Expand structured administrative fields under structured-handoff; current explicit date/clinic template works.
+**Remaining:** Complete manual administrative fields and exact return-visit template implemented. Validate usability with the chosen worker/device.
 
 **Accept when:** A worker can type and complete the approved return-visit journey without AI; invalid calendar dates are rejected.
 
@@ -104,11 +104,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Fixed fields for action/date/place/item/reported concern (structured-handoff)
 
-**Status:** partial · **Phase:** structured · **Original schematic:** 7, 8, 9, 11 · **Original timeline:** 3, 4, 6
+**Status:** implemented · **Phase:** structured · **Original schematic:** 7, 8, 9, 11 · **Original timeline:** 3, 4, 6
 
-**Evidence:** `src/templates.js` — `TEMPLATE_ID`; `src/visit.js` — `setReturnTemplate`
+**Evidence:** `src/handoff.js` — `createHandoff`; `src/app.js` — `structuredField`; `docs/structured-handoff.md` — `Verification`
 
-**Remaining:** Only date/place are structured in the return template. Add administrative action, explicit time if provided, optional item/task, optional clearly labeled patient-reported concern and unresolved fields. Do not require collecting optional information.
+**Remaining:** Supported administrative fields, provenance and revision approval are implemented. Validate the chosen real workflow/device; clinical transformation remains outside supported scope.
 
 **Accept when:** Source-backed fields are editable; worker choices resolve ambiguity; reported information is separate from the worker decision; no invented values.
 
@@ -116,11 +116,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### AI organizes variable worker notes into fixed fields (model-extraction)
 
-**Status:** missing · **Phase:** structured · **Original schematic:** 7, 9, 11, 14 · **Original timeline:** 6
+**Status:** needs-validation · **Phase:** structured · **Original schematic:** 7, 9, 11, 14 · **Original timeline:** 6
 
-**Evidence:** No implementation evidence recorded.
+**Evidence:** `src/handoff.js` — `createHandoff`; `src/app.js` — `structuredField`; `docs/structured-handoff.md` — `Verification`
 
-**Remaining:** Current AI paraphrases English only. Add constrained structured extraction, source-span provenance and schema validation with a deterministic/typed fallback.
+**Remaining:** Per-field local extraction, source-span/schema validation and a complete manual fallback are implemented. Real smoke runs extracted a date but misclassified action/place; bounded observed conflicts are flagged. Broad fidelity and actual target-device/network validation remain outstanding. Exact quotes do not prove correct categorization.
 
 **Accept when:** Only information present in the source can enter a draft field; worker checks each field; unsupported output is refused.
 
@@ -128,11 +128,11 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 ### Missing, ambiguous and low-confidence details (uncertainty)
 
-**Status:** partial · **Phase:** structured · **Original schematic:** 7, 8, 9, 20 · **Original timeline:** 6, 7
+**Status:** implemented · **Phase:** structured · **Original schematic:** 7, 8, 9, 20 · **Original timeline:** 6, 7
 
-**Evidence:** `src/wording.js` — `draftError`; `src/app.js` — `MODEL OUTPUT REJECTED`
+**Evidence:** `src/handoff.js` — `createHandoff`; `src/app.js` — `structuredField`; `docs/structured-handoff.md` — `Verification`
 
-**Remaining:** Current screening checks output changes; it does not ask field-specific questions for missing dates, unclear places or uncertain source phrases. Add workflow-required fields, unknown states and actionable clarification.
+**Remaining:** Workflow-required fields and bounded date/time/item/conditional checks are implemented. Detection is incomplete for arbitrary natural language; human review and real-device evaluation remain required.
 
 **Accept when:** Maybe Thursday remains uncertain; the model never chooses a date/place; worker can explicitly resolve or leave an optional field blank; required unresolved fields block finalization.
 
@@ -214,9 +214,9 @@ The seven implemented checkpoints are not the original 13-part timeline. The ori
 
 **Status:** partial · **Phase:** handoff · **Original schematic:** 7, 8, 10, 15 · **Original timeline:** 4, 5
 
-**Evidence:** `src/app.js` — `function patientCard`; `src/ar-renderer.js` — `Pictograms`
+**Evidence:** `src/app.js` — `function patientCard`; `src/ar-renderer.js` — `Pictograms`; `src/styles.css` — `.final-instruction{white-space:pre-wrap}`
 
-**Remaining:** Regular card uses one paragraph and has no action-specific pictograms. Add a structured, accessible action layout and context-matched simple symbols.
+**Remaining:** Structured approved details now display on separate lines. Action-specific pictograms and the understanding check remain outstanding.
 
 **Accept when:** All approved actions remain readable and in order; icons supplement text/audio; no color-only meaning or inferred clinical imagery.
 

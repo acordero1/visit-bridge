@@ -1,8 +1,11 @@
+import { spanishHandoffSupported } from './handoff.js';
 import { isValidCard } from './cards.js';
 
 export function cardLines(context, text, width) {
   const lines = []; let line = '';
-  for (const word of text.split(/\s+/)) {
+  for (const word of text.split(/(\n|[^\S\n]+)/)) {
+    if (word === '\n') { if (line) lines.push(line); line = ''; continue; }
+    if (!word.trim()) continue;
     if (context.measureText(word).width > width) {
       if (line) { lines.push(line); line = ''; }
       let part = '';
@@ -48,7 +51,7 @@ export function createARRenderer(session, card, environment = globalThis) {
     if (es) { ctx.fillStyle='#7a4b00'; ctx.font='bold 29px sans-serif'; for (const line of cardLines(ctx,labels.demoNotice,896)) {ctx.fillText(line,64,y);y+=40;} y+=35; }
     ctx.fillStyle='#174e3d';ctx.font='bold 36px sans-serif';ctx.fillText(es?labels.nextStep:'YOUR NEXT STEP',64,y);y+=72;
     // Pictograms describe the supported return action only; no inferred medical imagery.
-    if(card.template) { ctx.strokeStyle='#174e3d';ctx.lineWidth=7;ctx.strokeRect(64,y,94,88);ctx.beginPath();ctx.moveTo(64,y+25);ctx.lineTo(158,y+25);ctx.moveTo(85,y-9);ctx.lineTo(85,y+12);ctx.moveTo(136,y-9);ctx.lineTo(136,y+12);ctx.stroke();ctx.strokeRect(195,y+10,80,78);ctx.beginPath();ctx.moveTo(235,y+29);ctx.lineTo(235,y+68);ctx.moveTo(215,y+48);ctx.lineTo(255,y+48);ctx.stroke();y+=135; }
+    if(card.template && spanishHandoffSupported(card.handoff,card.template)) { ctx.strokeStyle='#174e3d';ctx.lineWidth=7;ctx.strokeRect(64,y,94,88);ctx.beginPath();ctx.moveTo(64,y+25);ctx.lineTo(158,y+25);ctx.moveTo(85,y-9);ctx.lineTo(85,y+12);ctx.moveTo(136,y-9);ctx.lineTo(136,y+12);ctx.stroke();ctx.strokeRect(195,y+10,80,78);ctx.beginPath();ctx.moveTo(235,y+29);ctx.lineTo(235,y+68);ctx.moveTo(215,y+48);ctx.lineTo(255,y+48);ctx.stroke();y+=135; }
     let size=68, lines, fits=false;
     for (;size>=18;size-=2) {ctx.font=`bold ${size}px sans-serif`;lines=cardLines(ctx,card.instruction,896); if(lines.length*size*1.35<=1300-y) {fits=true;break;}}
     if(!fits) throw new Error('This instruction is too long for readable AR. Use the regular card.');

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "assessedCommit": "d189990",
+  "assessedCommit": "5629fa4",
   "date": "2026-10-04",
   "sources": {
     "schematic": "docs/original-schematic.md",
@@ -9,7 +9,7 @@
     "timelineTurn": "01a104c5-9450-7710-a588-7636b175271f"
   },
   "policy": "The user's later instruction retains the full schematic, including AR. Archived text describing cuts/stretch priorities is historical and does not authorize dropping features. Alternative ideas (Care Card AR as a separate product, Referral Relay and Follow-up Memory) are not silently imported into Visit Bridge.",
-  "verificationScope": "Code inspection and previously recorded checks. Evidence anchors prove traceability, not clinical validation or hardware operation. No coverage percentage or probability of winning is calculated.",
+  "verificationScope": "Baseline 5629fa4 plus structured-handoff checkpoint source inspection, 50 automated checks and recorded browser observations; see docs/structured-handoff.md. Source traceability is not clinical or target-device validation.",
   "items": [
     {
       "id": "context",
@@ -87,15 +87,19 @@
       ],
       "evidence": [
         {
-          "file": "src/app.js",
-          "anchor": "function capture"
+          "file": "src/handoff.js",
+          "anchor": "createHandoff"
         },
         {
-          "file": "src/templates.js",
-          "anchor": "validTemplate"
+          "file": "src/app.js",
+          "anchor": "structuredField"
+        },
+        {
+          "file": "docs/structured-handoff.md",
+          "anchor": "Verification"
         }
       ],
-      "remaining": "Expand structured administrative fields under structured-handoff; current explicit date/clinic template works.",
+      "remaining": "Complete manual administrative fields and exact return-visit template implemented. Validate usability with the chosen worker/device.",
       "acceptance": "A worker can type and complete the approved return-visit journey without AI; invalid calendar dates are rejected.",
       "phase": "maintain",
       "dependencies": []
@@ -165,7 +169,7 @@
     {
       "id": "structured-handoff",
       "title": "Fixed fields for action/date/place/item/reported concern",
-      "status": "partial",
+      "status": "implemented",
       "sourceSections": [
         7,
         8,
@@ -179,15 +183,19 @@
       ],
       "evidence": [
         {
-          "file": "src/templates.js",
-          "anchor": "TEMPLATE_ID"
+          "file": "src/handoff.js",
+          "anchor": "createHandoff"
         },
         {
-          "file": "src/visit.js",
-          "anchor": "setReturnTemplate"
+          "file": "src/app.js",
+          "anchor": "structuredField"
+        },
+        {
+          "file": "docs/structured-handoff.md",
+          "anchor": "Verification"
         }
       ],
-      "remaining": "Only date/place are structured in the return template. Add administrative action, explicit time if provided, optional item/task, optional clearly labeled patient-reported concern and unresolved fields. Do not require collecting optional information.",
+      "remaining": "Supported administrative fields, provenance and revision approval are implemented. Validate the chosen real workflow/device; clinical transformation remains outside supported scope.",
       "acceptance": "Source-backed fields are editable; worker choices resolve ambiguity; reported information is separate from the worker decision; no invented values.",
       "phase": "structured",
       "dependencies": [
@@ -197,7 +205,7 @@
     {
       "id": "model-extraction",
       "title": "AI organizes variable worker notes into fixed fields",
-      "status": "missing",
+      "status": "needs-validation",
       "sourceSections": [
         7,
         9,
@@ -207,8 +215,21 @@
       "timelineParts": [
         6
       ],
-      "evidence": [],
-      "remaining": "Current AI paraphrases English only. Add constrained structured extraction, source-span provenance and schema validation with a deterministic/typed fallback.",
+      "evidence": [
+        {
+          "file": "src/handoff.js",
+          "anchor": "createHandoff"
+        },
+        {
+          "file": "src/app.js",
+          "anchor": "structuredField"
+        },
+        {
+          "file": "docs/structured-handoff.md",
+          "anchor": "Verification"
+        }
+      ],
+      "remaining": "Per-field local extraction, source-span/schema validation and a complete manual fallback are implemented. Real smoke runs extracted a date but misclassified action/place; bounded observed conflicts are flagged. Broad fidelity and actual target-device/network validation remain outstanding. Exact quotes do not prove correct categorization.",
       "acceptance": "Only information present in the source can enter a draft field; worker checks each field; unsupported output is refused.",
       "phase": "structured",
       "dependencies": [
@@ -218,7 +239,7 @@
     {
       "id": "uncertainty",
       "title": "Missing, ambiguous and low-confidence details",
-      "status": "partial",
+      "status": "implemented",
       "sourceSections": [
         7,
         8,
@@ -231,15 +252,19 @@
       ],
       "evidence": [
         {
-          "file": "src/wording.js",
-          "anchor": "draftError"
+          "file": "src/handoff.js",
+          "anchor": "createHandoff"
         },
         {
           "file": "src/app.js",
-          "anchor": "MODEL OUTPUT REJECTED"
+          "anchor": "structuredField"
+        },
+        {
+          "file": "docs/structured-handoff.md",
+          "anchor": "Verification"
         }
       ],
-      "remaining": "Current screening checks output changes; it does not ask field-specific questions for missing dates, unclear places or uncertain source phrases. Add workflow-required fields, unknown states and actionable clarification.",
+      "remaining": "Workflow-required fields and bounded date/time/item/conditional checks are implemented. Detection is incomplete for arbitrary natural language; human review and real-device evaluation remain required.",
       "acceptance": "Maybe Thursday remains uncertain; the model never chooses a date/place; worker can explicitly resolve or leave an optional field blank; required unresolved fields block finalization.",
       "phase": "structured",
       "dependencies": [
@@ -455,9 +480,13 @@
         {
           "file": "src/ar-renderer.js",
           "anchor": "Pictograms"
+        },
+        {
+          "file": "src/styles.css",
+          "anchor": ".final-instruction{white-space:pre-wrap}"
         }
       ],
-      "remaining": "Regular card uses one paragraph and has no action-specific pictograms. Add a structured, accessible action layout and context-matched simple symbols.",
+      "remaining": "Structured approved details now display on separate lines. Action-specific pictograms and the understanding check remain outstanding.",
       "acceptance": "All approved actions remain readable and in order; icons supplement text/audio; no color-only meaning or inferred clinical imagery.",
       "phase": "handoff",
       "dependencies": [
@@ -997,7 +1026,7 @@
     },
     {
       "id": "evaluation",
-      "title": "10–20 synthetic scenarios and fidelity/correction evidence",
+      "title": "10\u201320 synthetic scenarios and fidelity/correction evidence",
       "status": "missing",
       "sourceSections": [
         12,

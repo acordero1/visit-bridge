@@ -1,5 +1,6 @@
+import { FIELD_LABELS, FIELD_STATES, WORKFLOWS, createHandoff, templateHandoff, editHandoff, changeWorkflow, handoffIssues, handoffText, spanishHandoffSupported, extractionScopeIssue } from './handoff.js';
 import { createVisit, editInstruction, instructionError, selectLanguage, confirmVisit,
-  patientInstruction, canShare, setPatientText, confirmPatientText, visitStamp, setReturnTemplate, MAX_INSTRUCTION_LENGTH } from './visit.js';
+  patientInstruction, canShare, setPatientText, confirmPatientText, visitStamp, setReturnTemplate, approvedPlanText, setStructuredHandoff, MAX_INSTRUCTION_LENGTH } from './visit.js';
 
 import { saveApprovedCard, cardFromVisit, isValidCard } from './cards.js';
 import { cardRepository } from './storage.js';
@@ -20,6 +21,12 @@ let spanishPack = null;
 let packStatus = 'checking';
 let packError = '';
 let rejectedDraft = null;
+let extractionProposal = null;
+let extractionError = '';
+let rejectedExtractionText = '';
+let reviewMode = 'structured';
+let structuredBackup = null;
+let evidenceKey = null;
 let arOverlay = null;
 let arSnapshot = null;
 let arState = { status: 'idle', message: '', active: false, canPlace: false, placed: false };
@@ -103,10 +110,52 @@ function capture() {
     `<span class="icon-tile">${icon('note')}</span><h2>Start with your decision.</h2><p>Capture the next step in your own words. You’ll review it before your patient sees it.</p><div class="helper-example"><span>EXAMPLE</span><p>“Return to the clinic on Tuesday.”</p></div><p class="future-note">English dictation runs on-device where supported. You can always type instead.</p>`);
 }
 
+const stateLabel = state => ({ 'needs-review': 'Needs review', confirmed: 'Confirmed', unclear: 'Unclear', missing: 'Missing', 'not-needed': 'Not needed', 'not-specified': 'Not specified' })[state];
+function sourceEvidence() {
+  const evidence = visit.handoff?.fields[evidenceKey]?.evidence;
+  const source = visit.originalInstruction;
+  return evidence ? `${escape(source.slice(0, evidence.start))}<mark>${escape(source.slice(evidence.start, evidence.end))}</mark>${escape(source.slice(evidence.end))}` : escape(source);
+}
+function extractionControls() {
+  const busy = ['installing','loading','generating'].includes(modelState.status);
+  const scope = extractionScopeIssue(visit.originalInstruction);
+  return `<strong>Organize my note · on-device AI</strong><p role="status">${escape(modelState.message)}</p>${scope ? `<p>${escape(scope)}</p>` : ''}<div class="voice-actions">${busy ? '<button type="button" class="button secondary" data-action="cancel-model">Cancel</button>' : modelState.installed ? `<button type="button" class="button secondary" data-action="extract-note" ${scope ? 'disabled' : ''}>Organize my note</button>` : `<button type="button" class="button secondary" data-action="install-model" ${['checking','unsupported'].includes(modelState.status) ? 'disabled' : ''}>Install local AI · about 207 MB</button>`}</div><small>English input. Exact source quotes only; every value still needs worker review. The form below works without AI. Schema checks cannot prove meaning.</small>`;
+}
+function fieldEvidence(key) {
+  const field = visit.handoff.fields[key];
+  return field.evidence ? `<small>${field.origin === 'model' ? 'AI proposal' : 'Template'} · source: “${escape(field.evidence.quote)}”</small><button type="button" class="text-button" data-action="inspect-evidence" data-field="${key}">Highlight in source</button>` : `<small>${field.value ? 'Added by worker · not quoted from source' : 'No detail supplied'}</small>`;
+}
+function structuredField(key) {
+  const h = visit.handoff, f = h.fields[key];
+  const fixed = key === 'action' || key === 'reported' || (key === 'date' && h.workflow === 'return') || (key === 'place' && h.workflow !== 'other');
+  const issue = handoffIssues(h, visit.revision).find(message => message.startsWith(FIELD_LABELS[key]+':') || (key==='time' && message.startsWith('Time:')) || (key==='date' && message.startsWith('Calendar date:')));
+  return `<section class="structured-field"><label for="detail-${key}">${escape(FIELD_LABELS[key])}${h.required[key] ? ' <span>Required</span>' : ''}</label><input id="detail-${key}" data-detail="${key}" type="${key === 'date' ? 'date' : 'text'}" ${key==='date' ? 'min="2000-01-01" max="2099-12-31"' : ''} maxlength="240" value="${escape(key==='date' && !/^20\d{2}-\d{2}-\d{2}$/.test(f.value) ? '' : f.value)}" placeholder="${key==='time' ? '09:00 or 09:00–11:00' : 'Enter the detail chosen by the worker'}" aria-describedby="evidence-${key}"><div id="evidence-${key}" class="field-evidence">${fieldEvidence(key)}</div>${key==='date' && f.value && !/^20\d{2}-\d{2}-\d{2}$/.test(f.value) ? `<p class="field-help">Unresolved source phrase: “${escape(f.value)}”. Select the intended calendar date.</p>` : ''}<div class="field-review"><label for="state-${key}">Review state</label><select id="state-${key}" data-state="${key}">${FIELD_STATES.map(state=>`<option value="${state}" ${f.state===state?'selected':''}>${stateLabel(state)}</option>`).join('')}</select>${!fixed ? `<label class="detail-required"><input type="checkbox" id="required-${key}" data-required="${key}" ${h.required[key]?'checked':''}>Required for this handoff</label>` : ''}</div>${issue ? `<p class="field-help">${escape(issue)}</p>` : ''}</section>`;
+}
+function issueSummary() {
+  const issues = handoffIssues(visit.handoff, visit.revision);
+  return `<strong>${issues.length ? `${issues.length} detail${issues.length===1?' needs':'s need'} attention` : 'Details ready for your approval'}</strong>${issues.length ? `<ul>${issues.map(issue=>`<li>${escape(issue)}</li>`).join('')}</ul>` : '<p>Compare every confirmed detail with your source and clarifications before continuing.</p>'}`;
+}
+function proposalPanel() {
+  if (extractionError) return `<div class="error" role="alert">${escape(extractionError)} Your entered details remain available.${rejectedExtractionText ? `<details><summary>Inspect rejected model output</summary><pre class="rejected-output">${escape(rejectedExtractionText)}</pre><small>This output cannot be applied or approved.</small></details>` : ''}</div>`;
+  if (!extractionProposal) return '';
+  return `<section class="draft-panel"><strong>AI-organized proposal · not approved</strong><dl>${Object.entries(extractionProposal.fields).map(([key,f])=>`<dt>${escape(FIELD_LABELS[key])}</dt><dd>${f.value ? escape(f.value) : 'Not supplied'} · ${stateLabel(f.state)}</dd>`).join('')}</dl><p class="field-help">Applying this proposal replaces the current fields, including worker edits and optional requirement choices. Your source is preserved. All proposed values need review.</p><label class="check-label"><input type="checkbox" id="replace-details">I want to replace the current details with this proposal.</label><button type="button" class="button secondary" data-action="apply-extraction">Replace fields with this proposal</button><button type="button" class="text-button" data-action="discard-extraction">Discard proposal</button></section>`;
+}
 function review() {
-  return formLayout(1, 'Review your instruction', 'Make sure this is exactly what you want to communicate.',
-    `<div class="panel-heading"><span class="eyebrow">YOUR ORIGINAL INSTRUCTION</span><button class="text-button" data-action="edit">Edit instruction</button></div><blockquote class="instruction-text">${escape(visit.originalInstruction)}</blockquote><div class="review-note">${icon('shield')}<p>This wording is yours. No AI rewrite or translation has been applied.</p></div><form id="review-form"><label class="check-label"><input type="checkbox" id="worker-confirm" ${confirmed ? 'checked' : ''}/><span>I reviewed this instruction and confirm it is the next step I chose for the patient.</span></label><div class="form-actions">${button('Back to capture','edit',true)}<button class="button primary" type="submit">Confirm & continue${icon('arrow')}</button></div></form>`,
-    `<span class="icon-tile">${icon('shield')}</span><h2>You stay in control.</h2><p>Only an instruction you have reviewed and confirmed can become a patient handoff.</p><p>If you edit the wording, you’ll review and confirm it again.</p>`);
+  return formLayout(1, 'Organize and review the next step', 'Keep your source visible. Clarify the details the patient needs to act.',
+    `<div class="source-context"><div class="panel-heading"><span class="eyebrow">YOUR ORIGINAL INSTRUCTION · ENGLISH INPUT</span><button class="text-button" data-action="edit">Edit instruction</button></div><blockquote id="review-source" class="instruction-text">${sourceEvidence()}</blockquote></div><div class="capture-modes"><button type="button" class="mode-button ${reviewMode==='structured'?'selected':''}" data-action="structured-mode">Administrative details</button><button type="button" class="mode-button ${reviewMode==='source'?'selected':''}" data-action="source-mode">Original-language review</button></div><form id="review-form">${reviewMode==='structured' ? `<label for="workflow">Administrative workflow</label><select id="workflow">${Object.entries(WORKFLOWS).map(([key,label])=>`<option value="${key}" ${visit.handoff.workflow===key?'selected':''}>${label}</option>`).join('')}</select><section id="extraction-controls" class="voice-panel">${extractionControls()}</section>${proposalPanel()}<div id="structured-issues" class="uncertainty-summary" role="status">${issueSummary()}</div><div class="structured-fields">${Object.keys(FIELD_LABELS).filter(key=>key!=='reported').map(structuredField).join('')}</div><details class="reported-details" ${visit.handoff.fields.reported.value?'open':''}><summary>Optional patient-reported information</summary><p class="field-help">Include only what is necessary. This is kept apart from the worker plan and excluded from patient instructions.</p>${structuredField('reported')}</details><label class="check-label"><input type="checkbox" id="worker-confirm" ${confirmed?'checked':''}><span>I reviewed every confirmed detail and worker clarification. This is the administrative next step I chose.</span></label>` : `<div class="review-note"><p>This path preserves your source wording and does not validate structured details or resolve ambiguity. Clarify the instruction with the patient before approving it. Use it when the administrative transformation cannot represent the source.</p></div><label class="check-label"><input type="checkbox" id="worker-confirm" ${confirmed?'checked':''}><span>I reviewed this exact source instruction and confirm it is the next step I chose for the patient.</span></label>`}<div class="form-actions">${button('Back to capture','edit',true)}<button class="button primary" type="submit">Confirm & continue${icon('arrow')}</button></div></form>`,
+    `<span class="icon-tile">${icon('shield')}</span><h2>Resolve uncertainty here.</h2><div class="review-source-aside"><strong>Your source</strong><blockquote>${escape(visit.originalInstruction)}</blockquote></div><p>Choose the workflow yourself. Review each value or explicitly mark an optional detail unnecessary.</p><p>AI quotes are evidence of where words came from; you must check their meaning. A model cannot choose an appointment or referral for you.</p>`);
+}
+function updateStructuredUI() {
+  confirmed=false; patientConfirmed=false; extractionProposal=null; extractionError=''; error=''; root.querySelector('#review-form')?.querySelector('.draft-panel')?.remove();
+  root.querySelector('#worker-confirm').checked=false;
+  root.querySelector('#structured-issues').innerHTML=issueSummary();
+  for(const key of Object.keys(FIELD_LABELS)) {
+    const state=root.querySelector(`#state-${key}`); if(state) state.value=visit.handoff.fields[key].state;
+    const evidence=root.querySelector(`#evidence-${key}`); if(evidence) evidence.innerHTML=fieldEvidence(key);
+  }
+}
+function structuredRecord(h) {
+  return h ? `<h3>Structured administrative review</h3><dl class="structured-record">${Object.entries(h.fields).map(([key,f])=>`<dt>${escape(FIELD_LABELS[key])}</dt><dd>${escape(f.value || 'No value')} · ${stateLabel(f.state)} · ${f.origin==='worker' && f.value ? 'Added by worker' : escape(f.origin)}${f.evidence?`<br>Source quote: “${escape(f.evidence.quote)}”`:''}</dd>`).join('')}</dl><p>Workflow: ${escape(WORKFLOWS[h.workflow])}. Details approved ${escape(dateLabel(h.approvedAt))}. ${h.model?`Extraction model: ${escape(h.model.id)} · ${escape(h.model.revision)}.`:'Manual or template organization.'}</p>` : '<p>Original-language review only. Structured review was not recorded for this copy.</p>';
 }
 
 function aiControls() {
@@ -115,10 +164,11 @@ function aiControls() {
 }
 function updateAI() {
   const panel = root.querySelector('#ai-controls'); if (panel) panel.innerHTML = aiControls();
+  const extraction = root.querySelector('#extraction-controls'); if(extraction) extraction.innerHTML=extractionControls();
 }
 function handoff() {
   return formLayout(2, 'Prepare the patient handoff', 'Keep your original instruction. Review the patient wording separately.',
-    `<form id="handoff-form"><label for="language">Patient language <span>Required</span></label><p class="field-help">Ask the patient which language they prefer. Spanish is a constrained, unvalidated demonstration.</p><select id="language" required><option value="">Select a language</option><option value="en" ${visit.language === 'en' ? 'selected' : ''}>English · demo</option><option value="es" ${visit.language === "es" ? "selected" : ""} ${!spanishPack || !visit.template ? "disabled" : ""}>Español · unvalidated demo</option></select><section id="language-pack-controls" class="voice-panel">${packControls()}</section><div class="source-panel"><span class="eyebrow">ORIGINAL · WORKER APPROVED</span><blockquote class="instruction-text">${escape(visit.originalInstruction)}</blockquote><small>This is the evidence for your final wording. It remains unchanged.</small></div>${visit.language === "es" ? '<div class="review-note"><p>Spanish demonstration only. No clinical or community review has been supplied. Use fictional information; a worker must be able to compare both versions. Edit date or clinic in Capture, then review again.</p></div>' : `<section id="ai-controls" class="voice-panel" aria-label="Local AI drafting">${aiControls()}</section>`}${rejectedDraft ? `<section class="draft-panel rejected-draft"><span class="eyebrow">MODEL OUTPUT REJECTED · CANNOT BE SELECTED</span><p>${escape(rejectedDraft.text)}</p><small>${escape(rejectedDraft.message)} Your final wording has not changed.</small></section>` : ''}${visit.modelDraft ? `<section class="draft-panel"><span class="eyebrow">MODEL SUGGESTION · NOT APPROVED</span><p>${escape(visit.modelDraft.text)}</p><small>Basic checks passed; meaning still needs your review.</small><button type="button" class="button secondary" data-action="use-draft">Use this draft for review</button></section>` : ''}<div class="panel-heading preview-heading"><label for="patient-instruction">Final patient wording</label>${visit.language === "es" ? '<button type="button" class="text-button" data-action="edit">Edit return details</button>' : '<button type="button" class="text-button" data-action="use-original">Use original</button>'}</div><textarea id="patient-instruction" lang="${visit.language || "en"}" ${visit.language === "es" ? "readonly" : ""} rows="5" maxlength="${MAX_INSTRUCTION_LENGTH}" required>${escape(visit.patientText)}</textarea><p class="field-help" id="patient-origin">${escape(visit.patientTextOrigin === 'translation-template' ? 'Fixed Spanish template · pack 1.0.0 · unvalidated' : visit.patientTextOrigin === 'original' ? 'Your original wording' : visit.patientTextOrigin === 'model' ? 'Model draft selected for your review' : 'Wording edited by you')}. No diagnosis or new treatment should be added.</p><label class="check-label"><input type="checkbox" id="patient-confirm" ${patientConfirmed ? 'checked' : ''}><span>${visit.language === "es" ? "I can read Spanish and compared both versions. The return action, date and clinic match. I approve this exact text for this fictional demonstration; this is not professional translation validation." : "I compared this wording with my original instruction. The actions, details and cautions are unchanged, and I approve this exact patient wording."}</span></label><div class="form-actions">${button('Back to review','review',true)}<button class="button primary" type="submit">Approve & prepare care card${icon('arrow')}</button></div></form>`,
+    `<form id="handoff-form"><label for="language">Patient language <span>Required</span></label><p class="field-help">Ask the patient which language they prefer. Spanish is a constrained, unvalidated demonstration.</p><select id="language" required><option value="">Select a language</option><option value="en" ${visit.language === 'en' ? 'selected' : ''}>English · demo</option><option value="es" ${visit.language === "es" ? "selected" : ""} ${!spanishPack || !visit.template || !spanishHandoffSupported(visit.handoff, visit.template) ? "disabled" : ""}>Español · unvalidated demo</option></select><section id="language-pack-controls" class="voice-panel">${packControls()}</section><div class="source-panel"><span class="eyebrow">ORIGINAL · WORKER APPROVED</span><blockquote class="instruction-text">${escape(visit.originalInstruction)}</blockquote><small>Source note retained for comparison.</small>${visit.handoff ? `<div class="approved-plan"><strong>Worker-approved structured plan and clarifications</strong><p>${escape(approvedPlanText(visit))}</p></div>` : ''}</div>${visit.language === "es" ? '<div class="review-note"><p>Spanish demonstration only. No clinical or community review has been supplied. Use fictional information; a worker must be able to compare both versions. Edit date or clinic in Capture, then review again.</p></div>' : `<section id="ai-controls" class="voice-panel" aria-label="Local AI drafting">${aiControls()}</section>`}${rejectedDraft ? `<section class="draft-panel rejected-draft"><span class="eyebrow">MODEL OUTPUT REJECTED · CANNOT BE SELECTED</span><p>${escape(rejectedDraft.text)}</p><small>${escape(rejectedDraft.message)} Your final wording has not changed.</small></section>` : ''}${visit.modelDraft ? `<section class="draft-panel"><span class="eyebrow">MODEL SUGGESTION · NOT APPROVED</span><p>${escape(visit.modelDraft.text)}</p><small>Basic checks passed; meaning still needs your review.</small><button type="button" class="button secondary" data-action="use-draft">Use this draft for review</button></section>` : ''}<div class="panel-heading preview-heading"><label for="patient-instruction">Final patient wording</label>${visit.language === "es" ? '<button type="button" class="text-button" data-action="edit">Edit return details</button>' : '<button type="button" class="text-button" data-action="use-original">${visit.handoff ? "Use approved plan" : "Use original"}</button>'}</div><textarea id="patient-instruction" lang="${visit.language || "en"}" ${visit.language === "es" ? "readonly" : ""} rows="5" maxlength="${MAX_INSTRUCTION_LENGTH}" required>${escape(visit.patientText)}</textarea><p class="field-help" id="patient-origin">${escape(visit.patientTextOrigin === 'translation-template' ? 'Fixed Spanish template · pack 1.0.0 · unvalidated' : visit.patientTextOrigin === 'structured' ? 'Your approved structured plan' : visit.patientTextOrigin === 'original' ? 'Your original wording' : visit.patientTextOrigin === 'model' ? 'Model draft selected for your review' : 'Wording edited by you')}. No diagnosis or new treatment should be added.</p><label class="check-label"><input type="checkbox" id="patient-confirm" ${patientConfirmed ? 'checked' : ''}><span>${visit.language === "es" ? "I can read Spanish and compared both versions. The return action, date and clinic match. I approve this exact text for this fictional demonstration; this is not professional translation validation." : "I compared this wording with my source and approved clarifications. All confirmed actions and details are present, and I approve this exact patient wording."}</span></label><div class="form-actions">${button('Back to review','review',true)}<button class="button primary" type="submit">Approve & prepare care card${icon('arrow')}</button></div></form>`,
     `<span class="icon-tile">${icon('globe')}</span><h2>Your words. Your approval.</h2><p>Use the original, request an optional local draft, or edit the wording yourself. AI never chooses the patient’s next step.</p><p>Speak with the patient to check that the instruction makes sense. Any change requires your approval again.</p>`);
 }
 
@@ -146,7 +196,7 @@ async function updatePack(install=false) {
 function refreshPackPanel() {
   const panel = root.querySelector('#language-pack-controls'); if (!panel) return;
   panel.innerHTML = packControls();
-  root.querySelector('#language option[value="es"]').disabled = !spanishPack || !visit.template;
+  root.querySelector('#language option[value="es"]').disabled = !spanishPack || !visit.template || !spanishHandoffSupported(visit.handoff, visit.template);
 }
 function updatePlaybackControls() {
   const controls = root.querySelector('#playback-controls'); if (!controls) return;
@@ -170,8 +220,8 @@ function render(focus = true) {
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
-function navigate(next) { closeAR(); playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'handoff') { if (visit.language !== 'es') model.check(); } if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
-function start() { speech.cancel(); speech.textEdited(); captureMode = 'type'; templateMode = false; templateDate = ''; templateLocation = 'clinic'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
+function navigate(next) { if(next==='review' && reviewMode==='structured' && !visit.handoff) visit=setStructuredHandoff(visit,initialHandoff()); closeAR(); playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; extractionProposal=null; extractionError=''; evidenceKey=null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'review' || (next === 'handoff' && visit.language !== 'es')) model.check(); if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
+function start() { structuredBackup=null; reviewMode='structured'; extractionProposal=null; speech.cancel(); speech.textEdited(); captureMode = 'type'; templateMode = false; templateDate = ''; templateLocation = 'clinic'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
   if (event.target.id === 'instruction') {
@@ -179,14 +229,20 @@ root.addEventListener('input', event => {
     setInstruction(event.target.value);
   }
   if (['return-date','return-location'].includes(event.target.id)) { templateDate = root.querySelector('#return-date').value; templateLocation = root.querySelector('#return-location').value; confirmed = false; visit = editInstruction(visit, '', true); const template = { id: TEMPLATE_ID, date: templateDate, location: templateLocation }; if (validTemplate(template)) visit = setReturnTemplate(visit, template); root.querySelector('#instruction').value = visit.originalInstruction; root.querySelector('#character-count').textContent = `${visit.originalInstruction.length} / ${MAX_INSTRUCTION_LENGTH}`; }
+  if(event.target.dataset.detail) { model.cancel(); visit=setStructuredHandoff(visit, editHandoff(visit.handoff,event.target.dataset.detail,{value:event.target.value})); updateStructuredUI(); }
   if (event.target.id === 'worker-confirm') confirmed = event.target.checked;
   if (event.target.id === 'patient-instruction') { model.cancel(); visit = setPatientText(visit, event.target.value); patientConfirmed = false; rejectedDraft = null; root.querySelector('#patient-confirm').checked = false; root.querySelector('#patient-origin').textContent = 'Wording edited by you. No diagnosis or new treatment should be added.'; }
   if (event.target.id === 'patient-confirm') patientConfirmed = event.target.checked;
 });
 root.addEventListener('change', event => {
+  if(event.target.id==='workflow' || event.target.dataset.state || event.target.dataset.required) {
+    model.cancel();
+    const h=event.target.id==='workflow' ? changeWorkflow(visit.handoff,event.target.value) : editHandoff(visit.handoff,event.target.dataset.state || event.target.dataset.required,event.target.dataset.state ? {state:event.target.value} : {required:event.target.checked});
+    visit=setStructuredHandoff(visit,h); confirmed=false; extractionProposal=null; extractionError=''; const id=event.target.id; render(false); if(id) document.getElementById(id)?.focus();
+  }
   if (event.target.id === 'language') {
     model.cancel(); patientConfirmed = false;
-    try { visit = event.target.value ? selectLanguage(visit, event.target.value, spanishPack) : { ...visit, language: '', languageSource: null, translation: null, patientText: visit.originalInstruction, patientTextOrigin: 'original', patientTextRevision: visit.patientTextRevision + 1, patientApprovedRevision: null, patientApprovedAt: null, modelDraft: null }; error = ''; } catch (problem) { error = problem.message; }
+    try { visit = event.target.value ? selectLanguage(visit, event.target.value, spanishPack) : { ...visit, language: '', languageSource: null, translation: null, patientText: approvedPlanText(visit), patientTextOrigin: visit.handoff ? 'structured' : 'original', patientTextRevision: visit.patientTextRevision + 1, patientApprovedRevision: null, patientApprovedAt: null, modelDraft: null }; error = ''; } catch (problem) { error = problem.message; }
     const position = window.scrollY; render(false); document.querySelector('#language').focus(); window.scrollTo(0, position);
   }
 });
@@ -194,6 +250,11 @@ root.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (!action) return;
   event.preventDefault();
+  if((action==='structured-mode' && reviewMode!=='structured') || (action==='source-mode' && reviewMode!=='source')) { model.cancel(); if(visit.handoff) structuredBackup=structuredClone(visit.handoff); reviewMode=action==='structured-mode'?'structured':'source'; visit=setStructuredHandoff(visit,reviewMode==='structured' ? (structuredBackup?.sourceRevision===visit.revision ? structuredBackup : initialHandoff()) : null); confirmed=false; extractionProposal=null; extractionError=''; render(false); }
+  if(action==='inspect-evidence') { evidenceKey=event.target.closest('[data-field]').dataset.field; root.querySelector('#review-source').innerHTML=sourceEvidence(); root.querySelector('#review-source').scrollIntoView({block:'center',behavior:'smooth'}); }
+  if(action==='extract-note') { extractionProposal=null; extractionError=''; rejectedExtractionText=''; render(false); model.extract(visit); }
+  if(action==='discard-extraction') { extractionProposal=null; extractionError=''; render(false); }
+  if(action==='apply-extraction' && extractionProposal) { if(!root.querySelector('#replace-details')?.checked) { error='Confirm that you want to replace the current fields.'; render(false); } else { const h=structuredClone(extractionProposal); h.revision=visit.handoff.revision+1; visit=setStructuredHandoff(visit,h); confirmed=false; extractionProposal=null; render(false); } }
   if (action === 'view-ar') openAR();
   if (action === 'read-aloud') {
     try {
@@ -211,7 +272,7 @@ root.addEventListener('click', event => {
   if (action === 'install-model') model.install();
   if (action === 'cancel-model') model.cancel();
   if (action === 'generate-model') { rejectedDraft = null; model.generate(visit); }
-  if (action === 'use-original' || action === 'use-draft') { error = ''; model.cancel(); visit = setPatientText(visit, action === 'use-original' ? visit.originalInstruction : visit.modelDraft.text, action === 'use-original' ? 'original' : 'model'); patientConfirmed = false; render(false); }
+  if (action === 'use-original' || action === 'use-draft') { error = ''; model.cancel(); visit = setPatientText(visit, action === 'use-original' ? approvedPlanText(visit) : visit.modelDraft.text, action === 'use-original' ? (visit.handoff ? 'structured' : 'original') : 'model'); patientConfirmed = false; render(false); }
   if (action === 'type-mode') { speech.cancel(); captureMode = 'type'; updateVoiceControls(); root.querySelector('#instruction')?.focus(); }
   if (action === 'dictate-mode') { captureMode = 'dictate'; updateVoiceControls(); speech.check(); }
   if (action === 'dictate') speech.start(visit.originalInstruction);
@@ -234,7 +295,7 @@ root.addEventListener('click', event => {
   if (action === 'resume') visit ? navigate(visit.status === 'confirmed' ? 'handoff' : 'capture') : start();
   if (action === 'sample') { speech.cancel(); speech.textEdited(); visit = editInstruction(visit, 'Return to the clinic on Tuesday.'); confirmed = false; render(false); document.querySelector('#instruction').focus(); }
   if (action === 'edit') { templateMode = Boolean(visit.template); if (templateMode) { templateDate = visit.template.date; templateLocation = visit.template.location; } navigate('capture'); }
-  if (action === 'review') { confirmed = visit.status === 'confirmed'; navigate('review'); }
+  if (action === 'review') { if(reviewMode==='structured' && !visit.handoff) visit=setStructuredHandoff(visit,initialHandoff()); confirmed = visit.status === 'confirmed'; navigate('review'); }
   if (action === 'handoff') navigate('handoff');
   if (action === 'cancel') { speech.cancel(); model.cancel(); discardOpen = true; render(false); }
   if (action === 'keep') { discardOpen = false; render(false); root.querySelector('[data-action="cancel"]').focus(); }
@@ -273,7 +334,7 @@ function saved() {
 }
 
 function savedCard() {
-  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p>${patientCard(selectedCard.instruction)}<p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion >= 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. ${selectedCard.translation ? `Translation pack: ${escape(selectedCard.translation.pack.id)} · ${escape(selectedCard.translation.pack.version)} · demonstration-unvalidated. No professional or community review.` : ""} Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
+  return `<section class="completion"><span class="eyebrow">SAVED APPROVED COPY</span><h1 tabindex="-1" id="page-heading">Your saved care card</h1><p class="completion-intro">This is the wording approved when this copy was saved.</p>${patientCard(selectedCard.instruction)}<p class="completion-note">Reviewed ${escape(dateLabel(selectedCard.patientApprovedAt || selectedCard.confirmedAt))}<br>Saved ${escape(dateLabel(selectedCard.savedAt))} · Revision ${selectedCard.revision}<br>Later edits to a visit are not reflected in this saved copy until it is reviewed and saved again.</p>${selectedCard.schemaVersion >= 2 ? `<details class="audit-details"><summary>Original instruction and review record</summary><blockquote>${escape(selectedCard.originalInstruction)}</blockquote><p>Source approved ${escape(dateLabel(selectedCard.confirmedAt))}. ${selectedCard.translation ? `Translation pack: ${escape(selectedCard.translation.pack.id)} · ${escape(selectedCard.translation.pack.version)} · demonstration-unvalidated. No professional or community review.` : ""} Final wording: ${escape(selectedCard.patientTextOrigin)}. Wording revision ${selectedCard.patientTextRevision}.</p>${structuredRecord(selectedCard.handoff)}${selectedCard.modelDraft ? `<p>Draft model: ${escape(selectedCard.modelDraft.model)} · ${escape(selectedCard.modelDraft.modelRevision)}</p>` : ''}</details>` : ''}<div class="completion-actions">${button('Back to saved cards','saved',true)}<button class="text-button danger" data-action="request-delete" data-card-id="${escape(selectedCard.id)}">Delete from this device</button></div></section>`;
 }
 
 function deleteDialog() {
@@ -380,7 +441,13 @@ const speech = createSpeechController({
   onState: state => { speechState = state; updateVoiceControls(); },
   onText: text => setInstruction(text),
 });
+function initialHandoff() { return visit.template ? templateHandoff(visit.template,visit.originalInstruction,visit.revision,visit.template.location==='clinic'?'the clinic':'the community clinic') : createHandoff(visit.revision); }
 const model = createModelController({ onState: state => { modelState = state; updateAI(); }, onDraft: draft => {
+  if(draft.type==='extraction' || draft.type==='extraction-rejected') {
+    if(!visit || screen!=='review' || !visit.handoff || draft.revision!==visit.revision || draft.handoffRevision!==visit.handoff.revision) return;
+    if(draft.type==='extraction') { extractionProposal=draft.handoff; extractionError=''; } else { extractionProposal=null; extractionError=draft.message; rejectedExtractionText=draft.text || ''; }
+    render(false); return;
+  }
   if (!visit || screen !== 'handoff' || visit.revision !== draft.revision || visit.language !== draft.language) return;
   if (draft.type === 'rejected') { rejectedDraft = { text: draft.text, message: draft.message }; render(false); return; }
   rejectedDraft = null;

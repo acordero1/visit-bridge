@@ -37,6 +37,7 @@ test('permission rejection and unavailable devices retain the normal card withou
 });
 test('AR text wrapping retains long words and placement uses the selected world position',()=>{
  const ctx={measureText:text=>({width:text.length})};const text='Return to the community clinic on Tuesday, 2026-10-06.';
+ assert.deepEqual(cardLines(ctx,'Return\nBring the appointment slip',100),['Return','Bring the appointment slip']);
  assert.equal(cardLines(ctx,text,20).join(' '),text);assert.equal(cardLines(ctx,'abcdefghij',3).join(''),'abcdefghij');
  const m=placementMatrix([2,0,-3],0);assert.equal(m[12],2);assert.equal(m[14],-3);assert.ok(m[13]>.4);assert.equal(m[15],1);
 });

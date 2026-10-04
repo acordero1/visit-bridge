@@ -178,3 +178,10 @@ Run `npm run audit:features` to check unique IDs, evidence-file/anchor existence
 The audit identifies missing understanding checks, full structured extraction/uncertainty, encrypted storage/app lock, portable paper/model packs, marker-based AR replay, measured baseline/user evidence, hosting and final submission assets. Current surface-placement AR is retained as an additional mode and does not satisfy the original marker-scan/audio sequence by itself. Spanish remains unvalidated; qualification/community review cannot be manufactured by code. Optional authorized health-system synchronization is preserved as a future capability requiring a real authorized destination.
 
 Next coding checkpoint: structured administrative handoff fields, constrained source-backed extraction and explicit uncertainty, while preserving original/final approval controls. No patient-facing feature was added by the audit checkpoint. Review statuses before claiming the full schematic is complete.
+
+
+## Ninth checkpoint: structured administrative review
+
+Review now supports Return visit, Already-chosen referral and Other administrative next step. Enter action/date/time/place/item/task manually or request a local AI extraction proposal. Exact source quotes, worker additions, missing/unclear states and workflow requirements are visible. Confirm each populated field, then approve the details and the patient wording separately. New schema v4 cards preserve the structured review; older saved cards remain readable.
+
+The Spanish demo still supports only the exact return-date-and-clinic template; added details block Spanish selection. Original-language review is explicitly labeled as lacking structured validation. Full scope and verification limits are in `docs/structured-handoff.md`. All 50 automated checks pass. Real device, airplane-mode, semantic fidelity and human validation remain separate pending evidence. No raw audio or cloud model handoff is added. Current saved records remain plaintext.

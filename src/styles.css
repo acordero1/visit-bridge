@@ -370,3 +370,17 @@ textarea[readonly] { background: #f4f7f5; }
 .ar-dialog.session-active .ar-intro, .ar-dialog.session-active .ar-preview { display: none; }
 .ar-dialog.session-active .ar-header, .ar-dialog.session-active .ar-footer { pointer-events: auto; background: rgba(255,253,245,.94); border-radius: 16px; padding: 16px; }
 @media(max-width:600px) { .ar-header { align-items: flex-start; flex-direction: column; } .ar-dialog { padding: 12px; } .ar-footer { padding: 14px; } }
+
+/* Structured worker review: uncertainty uses words, not color alone. */
+.structured-field{border:1px solid #d4ddd0;border-radius:10px;padding:18px;margin:16px 0;background:#fbfdf8}
+.structured-field input:not([type=checkbox]){width:100%;padding:13px;border:1px solid #b9c8b2;border-radius:7px;font:inherit;background:#fff;box-sizing:border-box}
+.structured-field input:focus{outline:2px solid #355b3d;outline-offset:2px}
+.field-evidence{margin-top:8px;line-height:1.6;color:#52634c}.field-evidence small{display:block}.field-evidence .text-button{padding:5px 0}
+.field-review{display:grid;gap:8px;margin-top:14px}.field-review label{margin:0}.detail-required{display:flex;gap:8px;align-items:center;font-weight:400}.detail-required input{width:18px;height:18px}
+.uncertainty-summary{padding:18px;margin:18px 0;border:1px solid #bca772;background:#fff8e8;border-radius:10px;line-height:1.65}.uncertainty-summary ul{padding-left:21px}.uncertainty-summary p{margin-bottom:0}
+.reported-details{border-top:1px solid #d4ddd0;padding-top:20px}.reported-details summary{cursor:pointer}.structured-record dt,.draft-panel dt{font-weight:600;margin-top:12px}.structured-record dd,.draft-panel dd{margin:4px 0 12px;overflow-wrap:anywhere}.approved-plan p{white-space:pre-wrap}.instruction-text mark{background:#fff1a8;color:#243a2b}.final-instruction{white-space:pre-wrap}
+@media(max-width:560px){.structured-field{padding:13px}.capture-modes{flex-wrap:wrap}.uncertainty-summary{padding:13px}}
+
+.source-context{position:sticky;top:12px;z-index:2;background:#fff;padding:12px 0;border-bottom:1px solid #d4ddd0}.source-context blockquote{max-height:145px;overflow:auto;margin-bottom:12px}.review-source-aside{font-size:14px;line-height:1.65;overflow-wrap:anywhere}.review-source-aside blockquote{margin:12px 0}.field-help,.field-evidence{overflow-wrap:anywhere}
+
+.rejected-output{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;max-height:250px;overflow:auto}
