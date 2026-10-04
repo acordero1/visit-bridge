@@ -8,6 +8,7 @@ import { createSpeechController } from './speech.js';
 import { createModelController } from './model.js';
 import { TEMPLATE_ID, validTemplate } from './templates.js';
 import { loadLanguagePack, installLanguagePack } from './language-packs.js';
+import { createARController } from './ar.js';
 import { createPlaybackController } from './playback.js';
 let playbackState = { status: 'checking', message: 'Checking for a local English voice…', available: false, voiceName: '' };
 let modelState = { status: 'checking', message: 'Checking local AI availability…', installed: false };
@@ -19,6 +20,9 @@ let spanishPack = null;
 let packStatus = 'checking';
 let packError = '';
 let rejectedDraft = null;
+let arOverlay = null;
+let arSnapshot = null;
+let arState = { status: 'idle', message: '', active: false, canPlace: false, placed: false };
 
 const root = document.querySelector('#app');
 let visit = null;
@@ -122,7 +126,7 @@ function currentLanguage() { return screen === 'savedCard' ? selectedCard?.langu
 function patientLabels() { return (screen === 'savedCard' ? selectedCard?.translation : visit?.translation)?.pack.labels || { nextStep: 'YOUR NEXT STEP', fromWorker: 'From your health worker', approved: 'Worker confirmed', hearStep: 'Hear your next step', play: 'Read aloud', again: 'Read again', pause: 'Pause', resume: 'Resume', stop: 'Stop', checkVoice: 'Check voice again', voice: 'Device voice', playbackNote: 'Reads the approved words on this card. Tap to start; use your device volume controls.' }; }
 function patientCard(text) {
   const l = patientLabels(), lang = currentLanguage() || 'en';
-  return `<article class="final-card" lang="${lang}"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}${escape(l.approved)}</span></div>${lang === 'es' ? `<p class="translation-notice">${escape(l.demoNotice)}</p>` : ''}<span class="card-eyebrow">${escape(l.nextStep)}</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>${escape(l.fromWorker)}</span><span>${lang === 'es' ? 'Español' : 'English'}</span></div><section id="playback-controls" class="playback-panel" aria-label="${escape(l.hearStep)}">${playbackControls()}</section></article>`;
+  return `<article class="final-card" lang="${lang}"><div class="final-card-head"><span class="card-logo">${icon('bridge')}VISIT BRIDGE</span><span class="confirmed-tag">${icon('check')}${escape(l.approved)}</span></div>${lang === 'es' ? `<p class="translation-notice">${escape(l.demoNotice)}</p>` : ''}<span class="card-eyebrow">${escape(l.nextStep)}</span><p class="final-instruction">${escape(text)}</p><div class="card-rule"></div><div class="final-card-foot"><span>${escape(l.fromWorker)}</span><span>${lang === 'es' ? 'Español' : 'English'}</span></div><section id="playback-controls" class="playback-panel" aria-label="${escape(l.hearStep)}">${playbackControls()}</section><div class="ar-entry"><button type="button" class="button secondary" data-action="view-ar">${icon("card")}${lang === "es" ? "Ver tarjeta en RA" : "View card in AR"}</button><small>${lang === "es" ? "Coloque la tarjeta en una superficie con un dispositivo compatible." : "Place this approved card on a surface using a compatible AR device."}</small></div></article>`;
 }
 function playbackControls() {
   const { status, available, message, voiceName } = playbackState, l = patientLabels();
@@ -166,7 +170,7 @@ function render(focus = true) {
   else if (focus) root.querySelector('#page-heading, .hero h1')?.focus();
 }
 
-function navigate(next) { playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'handoff') { if (visit.language !== 'es') model.check(); } if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
+function navigate(next) { closeAR(); playback.stop(); speech.cancel(); model.cancel(); rejectedDraft = null; screen = next; error = ''; discardOpen = false; if (next === 'handoff') patientConfirmed = visit.patientApprovedRevision === visit.patientTextRevision; render(); window.scrollTo(0, 0); if (next === 'capture' && !templateMode) speech.check(); if (next === 'handoff') { if (visit.language !== 'es') model.check(); } if (['complete','savedCard'].includes(next)) playback.check(currentLanguage()); }
 function start() { speech.cancel(); speech.textEdited(); captureMode = 'type'; templateMode = false; templateDate = ''; templateLocation = 'clinic'; visit = createVisit(); confirmed = false; savedRevision = null; saveError = '';  navigate('capture'); }
 
 root.addEventListener('input', event => {
@@ -190,6 +194,7 @@ root.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (!action) return;
   event.preventDefault();
+  if (action === 'view-ar') openAR();
   if (action === 'read-aloud') {
     try {
       const card = screen === 'complete' && visit && canShare(visit) ? cardFromVisit(visit) : screen === 'savedCard' && isValidCard(selectedCard) ? selectedCard : null;
@@ -220,7 +225,7 @@ root.addEventListener('click', event => {
     if (selectedCard) navigate('savedCard');
   }
   if (action === 'save') saveCurrentCard();
-  if (action === 'request-delete') { playback.stop(); deleteId = event.target.closest('[data-card-id]').dataset.cardId; render(false); }
+  if (action === 'request-delete') { closeAR(); playback.stop(); deleteId = event.target.closest('[data-card-id]').dataset.cardId; render(false); }
   if (action === 'keep-card' && !deleting) { deleteId = null; render(); }
   if (action === 'delete-card') deleteCard();
   if (action === 'install') promptInstall();
@@ -251,6 +256,7 @@ root.addEventListener('submit', event => {
   } catch (problem) { error = problem.message; render(false); root.querySelector('.error')?.scrollIntoView({ block: 'center' }); }
 });
 document.addEventListener('keydown', event => {
+  if (arOverlay) { if (event.key === 'Escape') { event.preventDefault(); closeAR(); return; } if (event.key === 'Tab') { const buttons = [...arOverlay.querySelectorAll('button:not(:disabled)')]; if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons.at(-1)?.focus(); } else if (!event.shiftKey && document.activeElement === buttons.at(-1)) { event.preventDefault(); buttons[0]?.focus(); } } return; }
   if (event.key === 'Escape' && playback.isBusy()) { playback.stop(); return; }
   if (event.key === 'Escape' && speech.isBusy()) { speech.cancel(); root.querySelector('#instruction')?.focus(); return; }
   if (!discardOpen && !deleteId) return;
@@ -381,9 +387,38 @@ const model = createModelController({ onState: state => { modelState = state; up
   visit = { ...visit, modelDraft: { text: draft.text, revision: draft.revision, language: draft.language, model: draft.model, modelRevision: draft.modelRevision } };
   render(false);
 } });
+
+function openAR() {
+  const card = screen === 'complete' && visit && canShare(visit) ? cardFromVisit(visit) : screen === 'savedCard' && isValidCard(selectedCard) ? selectedCard : null;
+  if (!card || arOverlay) return;
+  playback.stop(); speech.cancel(); model.cancel(); arSnapshot = structuredClone(card);
+  const es=card.language==='es';
+  arOverlay=document.createElement('section'); arOverlay.className='ar-dialog'; arOverlay.setAttribute('role','dialog');arOverlay.setAttribute('aria-modal','true');arOverlay.setAttribute('aria-labelledby','ar-heading');arOverlay.lang=card.language;
+  arOverlay.innerHTML=`<header class="ar-header"><div><span class="eyebrow">VISIT BRIDGE · ${es?'REALIDAD AUMENTADA':'SPATIAL AR'}</span><h2 id="ar-heading">${es?'Su próximo paso, a la vista':'Keep your next step in view'}</h2></div><button type="button" class="button secondary" data-ar-action="exit">${es?'Volver a la tarjeta':'Back to card'}</button></header><div class="ar-intro"><p>${es?'Al iniciar, su navegador solicitará acceso a su entorno. La cámara se usa para colocar esta tarjeta. Visit Bridge no graba, guarda ni envía imágenes.':'Start AR asks your browser for access to your surroundings. The camera is used to place this card. Visit Bridge does not record, save or send images.'}</p><p>${es?'Use información ficticia. La tarjeta normal sigue disponible.':'Use fictional information. The regular card remains available.'}</p></div><article class="ar-preview">${es?`<p class="translation-notice">${escape(card.translation.pack.labels.demoNotice)}</p>`:''}<span class="eyebrow">${es?'TEXTO APROBADO':'APPROVED CARD TEXT'}</span><p>${escape(card.instruction)}</p></article><footer class="ar-footer"><p id="ar-status" role="status" aria-live="polite"></p><div id="ar-actions"></div><small>${es?'Mueva el teléfono lentamente. Coloque la tarjeta en una superficie despejada.':'Move slowly. Place the card on a clear surface. Surface tracking needs a compatible device.'}</small></footer>`;
+  arOverlay.addEventListener('beforexrselect',event=>{if(event.target.closest?.('button'))event.preventDefault();});
+  arOverlay.addEventListener('click',event=>{const action=event.target.closest('[data-ar-action]')?.dataset.arAction;if(!action)return;event.preventDefault(); if(action==='exit')closeAR();if(action==='start')ar.start(arSnapshot,arOverlay);if(action==='place')ar.place();if(action==='reposition')ar.reposition();if(action==='larger')ar.resize(.1);if(action==='smaller')ar.resize(-.1);if(action==='rotate')ar.rotate(Math.PI/12);if(action==='retry')ar.check();});
+  document.body.append(arOverlay);root.inert=true;updateAR();arOverlay.querySelector('[data-ar-action="exit"]').focus();ar.check();
+}
+function updateAR() {
+  if(!arOverlay)return;
+  const es=arSnapshot.language==='es', {status,active,placed,canPlace}=arState;
+  const messages={checking:'Comprobando compatibilidad…',ready:'Listo. Inicie RA para solicitar acceso a su entorno.',starting:'Iniciando RA. Responda a la solicitud de su navegador.',scanning:'Mueva el teléfono lentamente sobre una superficie despejada.',surface:'Superficie encontrada. Pulse Colocar tarjeta.',placed:'Tarjeta colocada. Puede moverse alrededor o volver a colocarla.',tracking:'Seguimiento en pausa. Muévase lentamente hasta que vuelva la vista.',unavailable:'RA espacial no disponible. Use la tarjeta normal o un dispositivo compatible.',error:'No se pudo iniciar o continuar RA. La tarjeta normal sigue disponible.',idle:'RA finalizada. Puede volver a la tarjeta normal.'};
+  arOverlay.classList.toggle('session-active',active);
+  arOverlay.querySelector('#ar-status').textContent=es?messages[status]:arState.message;
+  const controls=arOverlay.querySelector('#ar-actions'),focused=controls.contains(document.activeElement)?document.activeElement.dataset.arAction:null;
+  const b=(label,action,disabled=false)=>`<button type="button" class="button secondary" data-ar-action="${action}" ${disabled?'disabled':''}>${label}</button>`;
+  controls.innerHTML=active ? (placed?b(es?'Volver a colocar':'Reposition','reposition')+b(es?'Más grande':'Larger','larger')+b(es?'Más pequeña':'Smaller','smaller')+b(es?'Girar':'Rotate','rotate'):b(es?'Colocar tarjeta':'Place card','place',!canPlace)) : status==='ready'||status==='idle'?b(es?'Iniciar RA':'Start AR','start'):['unavailable','error'].includes(status)?b(es?'Comprobar de nuevo':'Check again','retry'):'';
+  if(focused)(controls.querySelector(`[data-ar-action="${focused}"]:not(:disabled)`)||controls.querySelector('button:not(:disabled)')||arOverlay.querySelector('[data-ar-action="exit"]')).focus();
+}
+function closeAR() {
+  if(!arOverlay)return;
+  ar.stop();arOverlay.remove();arOverlay=null;arSnapshot=null;root.inert=false;root.querySelector('[data-action="view-ar"]')?.focus();
+}
+
+const ar = createARController({ onState: state => { arState=state; updateAR(); } });
 const playback = createPlaybackController({ onState: state => { playbackState = state; updatePlaybackControls(); } });
-window.addEventListener('pagehide', () => { playback.stop(); speech.cancel(); model.cancel(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { playback.stop(); speech.cancel(); model.cancel(); } });
+window.addEventListener('pagehide', () => { closeAR(); playback.stop(); speech.cancel(); model.cancel(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { closeAR(); playback.stop(); speech.cancel(); model.cancel(); } });
 window.addEventListener('online', updateStatus);
 window.addEventListener('offline', updateStatus);
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; updateStatus(); });
